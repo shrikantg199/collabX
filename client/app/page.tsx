@@ -1,0 +1,15 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function HomePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = window.localStorage.getItem("collabx_token");
+    router.replace(token ? "/workspace" : "/login");
+  }, [router]);
+
+  return <main className="shell" />;
+}
