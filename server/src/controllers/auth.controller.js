@@ -2,20 +2,61 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function sanitizeUser(user) {
   return {
     _id: user._id,
     name: user.name,
     email: user.email,
+    photoUrl: user.photoUrl || "",
   };
+}
+
+function validatePhotoUrl(photoUrl) {
+  if (!photoUrl) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(photoUrl);
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return "Photo URL must start with http or https.";
+    }
+  } catch (_error) {
+    return "Photo URL must be a valid link.";
+  }
+
+  return null;
 }
 
 async function register(req, res) {
   try {
-    const { name, email, password } = req.body;
+    const name = req.body.name?.trim();
+    const email = req.body.email?.trim().toLowerCase();
+    const password = req.body.password?.trim();
+    const photoUrl = req.body.photoUrl?.trim() ?? "";
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email, and password are required." });
+    }
+
+    if (name.length < 2 || name.length > 40) {
+      return res.status(400).json({ message: "Name must be between 2 and 40 characters." });
+    }
+
+    if (!EMAIL_PATTERN.test(email)) {
+      return res.status(400).json({ message: "Enter a valid email address." });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+
+    const photoUrlError = validatePhotoUrl(photoUrl);
+    if (photoUrlError) {
+      return res.status(400).json({ message: photoUrlError });
     }
 
     const existingUser = await User.findOne({ email });
@@ -27,6 +68,7 @@ async function register(req, res) {
     const user = await User.create({
       name,
       email,
+      photoUrl,
       password: hashedPassword,
     });
 
@@ -41,7 +83,8 @@ async function register(req, res) {
 
 async function login(req, res) {
   try {
-    const { email, password } = req.body;
+    const email = req.body.email?.trim().toLowerCase();
+    const password = req.body.password?.trim();
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required." });
@@ -51,7 +94,7 @@ async function login(req, res) {
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
-
+ 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials." });
@@ -73,6 +116,7 @@ async function me(req, res) {
 async function updateProfile(req, res) {
   try {
     const name = req.body.name?.trim();
+    const photoUrl = req.body.photoUrl?.trim() ?? "";
 
     if (!name) {
       return res.status(400).json({ message: "Name is required." });
@@ -82,7 +126,13 @@ async function updateProfile(req, res) {
       return res.status(400).json({ message: "Name must be between 2 and 40 characters." });
     }
 
+    const photoUrlError = validatePhotoUrl(photoUrl);
+    if (photoUrlError) {
+      return res.status(400).json({ message: photoUrlError });
+    }
+
     req.user.name = name;
+    req.user.photoUrl = photoUrl;
     await req.user.save();
 
     return res.json({ user: sanitizeUser(req.user) });
@@ -91,9 +141,45 @@ async function updateProfile(req, res) {
   }
 }
 
+async function updatePassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Current and new passwords are required." });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Current password is incorrect." });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: "Choose a new password different from the current one." });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return res.json({ message: "Password updated successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Password update failed." });
+  }
+}
+
 module.exports = {
   register,
   login,
   me,
   updateProfile,
+  updatePassword,
 };

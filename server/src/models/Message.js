@@ -23,4 +23,6 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
+messageSchema.index({ workspace: 1, createdAt: 1 });
+
 module.exports = mongoose.model("Message", messageSchema);

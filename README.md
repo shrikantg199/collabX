@@ -42,8 +42,8 @@ The backend is structured for Day 1 delivery while keeping Day 2 expansion easy:
 - `auth` routes handle register, login, and current user lookup
 - `workspaces` routes handle create, join, and list
 - `messages` routes fetch message history for a workspace
-- Socket.IO handles room joins and live message broadcasting
-- `redis.js` exists as a placeholder for Pub/Sub scaling later
+- Socket.IO handles room joins while Redis Pub/Sub fans messages across server instances
+- MongoDB remains the source of truth for message history
 
 ## Frontend Overview
 
@@ -64,9 +64,12 @@ Create the environment files from the examples:
 ```env
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/collabx
+REDIS_URL=redis://127.0.0.1:6379
 JWT_SECRET=replace-with-a-strong-secret
 CLIENT_URL=http://localhost:3000
 ```
+
+`REDIS_URL` is optional for local development. If you omit it, chat still works on a single backend instance and Redis-based scaling is disabled.
 
 ### `client/.env.local`
 
@@ -114,7 +117,6 @@ Open `http://localhost:3000`.
 
 ## Notes
 
-- Redis is intentionally not active yet.
-- The editor panel is a Day 2 placeholder so chat can ship first.
+- Day 2 chat fanout goes through Redis Pub/Sub when `REDIS_URL` is configured, which lets multiple backend instances stay in sync.
+- Messages are still persisted in MongoDB and loaded through the REST API on workspace open.
 - Socket auth uses the same JWT as the REST API.
-fxcx

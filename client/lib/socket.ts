@@ -5,12 +5,13 @@ let socket: Socket | null = null;
 export function connectSocket(token: string) {
   if (!socket) {
     socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000", {
-      auth: {
-        token,
-      },
       autoConnect: false,
     });
   }
+
+  socket.auth = {
+    token,
+  };
 
   if (!socket.connected) {
     socket.connect();

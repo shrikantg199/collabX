@@ -195,6 +195,34 @@ button {
   color: var(--accent);
 }
 
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.profile-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(97, 216, 195, 0.28), rgba(255, 184, 77, 0.2));
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .workspace-layout {
   display: grid;
   gap: 24px;

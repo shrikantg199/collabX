@@ -20,7 +20,7 @@ async function getWorkspaceMessages(req, res) {
 
     const messages = await Message.find({ workspace: workspaceId })
       .sort({ createdAt: 1 })
-      .populate("user", "name email")
+      .populate("user", "name email photoUrl")
       .lean();
 
     return res.json({ messages });

@@ -7,7 +7,6 @@ import type { Message, Workspace } from "@/types";
 type ChatBoxProps = {
   activeWorkspace: Workspace | null;
   messages: Message[];
-  onMessageSent: (message: Message) => void;
 };
 
 function formatTime(value: string) {
@@ -20,7 +19,6 @@ function formatTime(value: string) {
 export default function ChatBox({
   activeWorkspace,
   messages,
-  onMessageSent,
 }: ChatBoxProps) {
   const messagesRef = useRef<HTMLDivElement | null>(null);
 
@@ -74,10 +72,7 @@ export default function ChatBox({
         )}
       </div>
 
-      <MessageInput
-        activeWorkspace={activeWorkspace}
-        onMessageSent={onMessageSent}
-      />
+      <MessageInput activeWorkspace={activeWorkspace} />
     </section>
   );
 }

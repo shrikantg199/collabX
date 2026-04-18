@@ -2,17 +2,13 @@
 
 import { FormEvent, useState } from "react";
 import { connectSocket } from "@/lib/socket";
-import type { Message, Workspace } from "@/types";
+import type { Workspace } from "@/types";
 
 type MessageInputProps = {
   activeWorkspace: Workspace | null;
-  onMessageSent: (message: Message) => void;
 };
 
-export default function MessageInput({
-  activeWorkspace,
-  onMessageSent,
-}: MessageInputProps) {
+export default function MessageInput({ activeWorkspace }: MessageInputProps) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -35,16 +31,15 @@ export default function MessageInput({
         workspaceId: activeWorkspace._id,
         text: text.trim(),
       },
-      (response: { error?: string; message?: Message }) => {
+      (response: { error?: string; ok?: boolean }) => {
         setIsSending(false);
 
-        if (response.error || !response.message) {
+        if (response.error || !response.ok) {
           setError(response.error ?? "Message could not be delivered.");
           return;
         }
 
         setText("");
-        onMessageSent(response.message);
       }
     );
   }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 import api from "@/lib/api";
 
 type Mode = "login" | "register";
@@ -12,31 +13,104 @@ export default function LoginPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    photoUrl: "",
     password: "",
+    confirmPassword: "",
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const submitLabel = mode === "login" ? "Sign In" : "Create Account";
 
+  function validateRegisterForm() {
+    const trimmedName = form.name.trim();
+    const trimmedPhotoUrl = form.photoUrl.trim();
+
+    if (trimmedName.length < 2 || trimmedName.length > 40) {
+      return "Name must be between 2 and 40 characters.";
+    }
+
+    if (form.password.length < 6) {
+      return "Password must be at least 6 characters.";
+    }
+
+    if (form.password !== form.confirmPassword) {
+      return "Password and confirm password must match.";
+    }
+
+    if (trimmedPhotoUrl) {
+      try {
+        const parsedUrl = new URL(trimmedPhotoUrl);
+
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+          return "Photo URL must start with http or https.";
+        }
+      } catch {
+        return "Photo URL must be a valid link.";
+      }
+    }
+
+    return null;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+
+    if (mode === "register") {
+      const validationError = validateRegisterForm();
+
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     try {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload =
         mode === "login"
-          ? { email: form.email, password: form.password }
-          : form;
+          ? {
+              email: form.email.trim().toLowerCase(),
+              password: form.password,
+            }
+          : {
+              name: form.name.trim(),
+              email: form.email.trim().toLowerCase(),
+              photoUrl: form.photoUrl.trim(),
+              password: form.password,
+            };
 
       const { data } = await api.post(endpoint, payload);
       window.localStorage.setItem("collabx_token", data.token);
       window.localStorage.setItem("collabx_user", JSON.stringify(data.user));
       router.replace("/workspace");
-    } catch {
-      setError("We could not sign you in yet. Double-check your details and try again.");
+    } catch (error) {
+      if (axios.isAxiosError<{ message?: string }>(error)) {
+        const serverMessage = error.response?.data?.message?.trim();
+
+        if (serverMessage) {
+          setError(serverMessage);
+        } else if (!error.response) {
+          setError(
+            "The app could not reach the API. Make sure the server is running and your client .env URL is correct.",
+          );
+        } else {
+          setError(
+            mode === "login"
+              ? "We could not sign you in yet. Please try again."
+              : "We could not create your account yet. Please try again.",
+          );
+        }
+      } else {
+        setError(
+          mode === "login"
+            ? "We could not sign you in yet. Please try again."
+            : "We could not create your account yet. Please try again.",
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -74,15 +148,29 @@ export default function LoginPage() {
 
           <form className="stack" onSubmit={handleSubmit}>
             {mode === "register" ? (
-              <input
-                className="input"
-                placeholder="Your name"
-                value={form.name}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, name: event.target.value }))
-                }
-                required
-              />
+              <>
+                <input
+                  className="input"
+                  placeholder="Your name"
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  required
+                />
+
+                <input
+                  className="input"
+                  placeholder="Photo URL (optional)"
+                  value={form.photoUrl}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      photoUrl: event.target.value,
+                    }))
+                  }
+                />
+              </>
             ) : null}
 
             <input
@@ -107,6 +195,23 @@ export default function LoginPage() {
               required
               minLength={6}
             />
+
+            {mode === "register" ? (
+              <input
+                className="input"
+                type="password"
+                placeholder="Confirm password"
+                value={form.confirmPassword}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    confirmPassword: event.target.value,
+                  }))
+                }
+                required
+                minLength={6}
+              />
+            ) : null}
 
             {error ? <p className="error">{error}</p> : null}
 
