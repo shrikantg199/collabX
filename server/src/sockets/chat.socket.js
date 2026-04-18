@@ -15,6 +15,15 @@ function logRedisDebug(message, details) {
   console.log(`[Redis Debug][port ${process.env.PORT || 5000}] ${message}`, details);
 }
 
+function serializeUser(user) {
+  return {
+    _id: user._id.toString(),
+    name: user.name,
+    email: user.email,
+    photoUrl: user.photoUrl || "",
+  };
+}
+
 async function validateWorkspaceMembership(workspaceId, userId) {
   const workspace = await Workspace.findById(workspaceId).select("members").lean();
 
@@ -33,28 +42,102 @@ async function validateWorkspaceMembership(workspaceId, userId) {
   return { workspace };
 }
 
-function leaveJoinedWorkspaces(socket) {
-  return Promise.all(
-    Array.from(socket.rooms)
-      .filter((roomId) => roomId !== socket.id)
-      .map((roomId) => socket.leave(roomId))
+async function getWorkspaceMessage(messageId, workspaceId) {
+  return Message.findOne({ _id: messageId, workspace: workspaceId });
+}
+
+async function hydrateMessage(messageId) {
+  return Message.findById(messageId).populate("user", "name email photoUrl").lean();
+}
+
+function emitWorkspaceEvent(io, event) {
+  switch (event?.type) {
+    case "message.created":
+      io.to(event.workspaceId).emit("new-message", event.message);
+      return;
+    case "message.updated":
+      io.to(event.workspaceId).emit("message-updated", event.message);
+      return;
+    case "message.deleted":
+      io.to(event.workspaceId).emit("message-deleted", {
+        workspaceId: event.workspaceId,
+        messageId: event.messageId,
+      });
+      return;
+    case "typing.updated":
+      io.to(event.workspaceId).emit("typing-status", {
+        workspaceId: event.workspaceId,
+        isTyping: event.isTyping,
+        user: event.user,
+      });
+      return;
+    default:
+      return;
+  }
+}
+
+function getRedisDebugDetails(event) {
+  if (!event) {
+    return null;
+  }
+
+  if (event.type === "typing.updated") {
+    return {
+      channel: MESSAGE_CHANNEL,
+      workspaceId: event.workspaceId,
+      userId: event.user?._id,
+      isTyping: event.isTyping,
+      type: event.type,
+    };
+  }
+
+  return {
+    channel: MESSAGE_CHANNEL,
+    workspaceId: event.workspaceId,
+    messageId: event.message?._id || event.messageId,
+    userId: event.message?.user?._id || event.user?._id,
+    type: event.type,
+  };
+}
+
+async function publishWorkspaceEvent(io, event) {
+  const publishedToRedis = await publish(MESSAGE_CHANNEL, event);
+
+  if (publishedToRedis) {
+    logRedisDebug("published workspace event to Redis", getRedisDebugDetails(event));
+    return true;
+  }
+
+  logRedisDebug("Redis publish unavailable, falling back to local broadcast", getRedisDebugDetails(event));
+  emitWorkspaceEvent(io, event);
+  return false;
+}
+
+function emitStoppedTypingForJoinedRooms(io, socket) {
+  const joinedWorkspaceIds = Array.from(socket.rooms).filter(
+    (roomId) => roomId !== socket.id
   );
-} 
+
+  return Promise.all(
+    joinedWorkspaceIds.map((workspaceId) =>
+      publishWorkspaceEvent(io, {
+        type: "typing.updated",
+        workspaceId,
+        isTyping: false,
+        user: serializeUser(socket.data.user),
+      })
+    )
+  );
+}
 
 async function attachChatHandlers(io) {
   const redisSubscribed = await subscribe(MESSAGE_CHANNEL, (event) => {
-    if (event?.type !== "message.created" || !event.workspaceId || !event.message) {
+    if (!event?.type || !event.workspaceId) {
       return;
     }
 
-    logRedisDebug("received message from Redis", {
-      channel: MESSAGE_CHANNEL,
-      workspaceId: event.workspaceId,
-      messageId: event.message._id,
-      userId: event.message.user?._id,
-    });
-
-    io.to(event.workspaceId).emit("new-message", event.message);
+    logRedisDebug("received workspace event from Redis", getRedisDebugDetails(event));
+    emitWorkspaceEvent(io, event);
   });
 
   if (!redisSubscribed) {
@@ -101,7 +184,6 @@ async function attachChatHandlers(io) {
           return;
         }
 
-        await leaveJoinedWorkspaces(socket);
         await socket.join(workspaceId);
         callback?.({ ok: true, workspaceId });
       } catch (error) {
@@ -132,37 +214,129 @@ async function attachChatHandlers(io) {
           text: text.trim(),
         });
 
-        const hydratedMessage = await Message.findById(message._id)
-          .populate("user", "name email photoUrl")
-          .lean();
+        const hydratedMessage = await hydrateMessage(message._id);
 
-        const publishedToRedis = await publish(MESSAGE_CHANNEL, {
+        await publishWorkspaceEvent(io, {
           type: "message.created",
           workspaceId,
           message: hydratedMessage,
         });
 
-        if (publishedToRedis) {
-          logRedisDebug("published message to Redis", {
-            channel: MESSAGE_CHANNEL,
-            workspaceId,
-            messageId: hydratedMessage._id,
-            userId: socket.data.user._id.toString(),
-          });
-        }
-
-        if (!publishedToRedis) {
-          logRedisDebug("Redis publish unavailable, falling back to local broadcast", {
-            workspaceId,
-            messageId: hydratedMessage._id,
-          });
-          io.to(workspaceId).emit("new-message", hydratedMessage);
-        }
-
         callback?.({ ok: true, message: hydratedMessage });
       } catch (error) {
         callback?.({ error: error.message || "Message delivery failed." });
       }
+    });
+
+    socket.on("update-message", async ({ workspaceId, messageId, text }, callback) => {
+      try {
+        if (!workspaceId || !messageId || !text?.trim()) {
+          callback?.({ error: "Workspace, message, and updated text are required." });
+          return;
+        }
+
+        const { error } = await validateWorkspaceMembership(
+          workspaceId,
+          socket.data.user._id
+        );
+
+        if (error) {
+          callback?.({ error });
+          return;
+        }
+
+        const message = await getWorkspaceMessage(messageId, workspaceId);
+        if (!message) {
+          callback?.({ error: "Message not found." });
+          return;
+        }
+
+        if (message.user.toString() !== socket.data.user._id.toString()) {
+          callback?.({ error: "You can only edit your own messages." });
+          return;
+        }
+
+        message.text = text.trim();
+        await message.save();
+
+        const hydratedMessage = await hydrateMessage(message._id);
+        await publishWorkspaceEvent(io, {
+          type: "message.updated",
+          workspaceId,
+          message: hydratedMessage,
+        });
+
+        callback?.({ ok: true, message: hydratedMessage });
+      } catch (error) {
+        callback?.({ error: error.message || "Message update failed." });
+      }
+    });
+
+    socket.on("delete-message", async ({ workspaceId, messageId }, callback) => {
+      try {
+        if (!workspaceId || !messageId) {
+          callback?.({ error: "Workspace and message are required." });
+          return;
+        }
+
+        const { error } = await validateWorkspaceMembership(
+          workspaceId,
+          socket.data.user._id
+        );
+
+        if (error) {
+          callback?.({ error });
+          return;
+        }
+
+        const message = await getWorkspaceMessage(messageId, workspaceId);
+        if (!message) {
+          callback?.({ error: "Message not found." });
+          return;
+        }
+
+        if (message.user.toString() !== socket.data.user._id.toString()) {
+          callback?.({ error: "You can only delete your own messages." });
+          return;
+        }
+
+        await message.deleteOne();
+        await publishWorkspaceEvent(io, {
+          type: "message.deleted",
+          workspaceId,
+          messageId,
+        });
+
+        callback?.({ ok: true, messageId });
+      } catch (error) {
+        callback?.({ error: error.message || "Message deletion failed." });
+      }
+    });
+
+    socket.on("typing-status", async ({ workspaceId, isTyping }) => {
+      if (!workspaceId) {
+        return;
+      }
+
+      const { error } = await validateWorkspaceMembership(
+        workspaceId,
+        socket.data.user._id
+      );
+
+      if (error) {
+        return;
+      }
+
+      await publishWorkspaceEvent(io, {
+        type: "typing.updated",
+        workspaceId,
+        isTyping: Boolean(isTyping),
+        user: serializeUser(socket.data.user),
+      });
+    });
+
+    socket.on("disconnecting", () => {
+      void emitStoppedTypingForJoinedRooms(io, socket);
     });
   });
 }

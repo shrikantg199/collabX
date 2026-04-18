@@ -141,6 +141,21 @@ async function updateProfile(req, res) {
   }
 }
 
+async function uploadProfilePhoto(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Please choose an image to upload." });
+    }
+
+    const filePath = `/uploads/profile-photos/${req.file.filename}`;
+    const photoUrl = `${req.protocol}://${req.get("host")}${filePath}`;
+
+    return res.status(201).json({ photoUrl });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Photo upload failed." });
+  }
+}
+
 async function updatePassword(req, res) {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -180,6 +195,7 @@ module.exports = {
   register,
   login,
   me,
+  uploadProfilePhoto,
   updateProfile,
   updatePassword,
 };

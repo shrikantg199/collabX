@@ -17,5 +17,8 @@ export type Message = {
   workspace: string;
   text: string;
   createdAt: string;
+  updatedAt: string;
   user: User;
 };
+
+export type TypingUser = Pick<User, "_id" | "name" | "photoUrl">;

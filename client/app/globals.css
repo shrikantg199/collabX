@@ -269,6 +269,20 @@ button {
   background: rgba(97, 216, 195, 0.14);
 }
 
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(255, 184, 77, 0.18);
+  color: #ffd38b;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 .chat-shell {
   display: grid;
   grid-template-rows: auto minmax(320px, 1fr) auto;
@@ -291,6 +305,37 @@ button {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.message-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.message-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.message-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(97, 216, 195, 0.28), rgba(255, 184, 77, 0.2));
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .message-meta {
   display: flex;
   justify-content: space-between;
@@ -298,6 +343,73 @@ button {
   font-size: 0.85rem;
   color: var(--muted);
   margin-bottom: 6px;
+}
+
+.message-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.message-action {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(97, 216, 195, 0.16);
+  color: var(--text);
+}
+
+.message-action.secondary {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.message-action.danger {
+  background: rgba(255, 118, 118, 0.18);
+  color: #ffd2d2;
+}
+
+.message-edit-input {
+  min-height: 90px;
+}
+
+.typing-indicator {
+  min-height: 24px;
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+
+.toast-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 30;
+  width: min(340px, calc(100vw - 32px));
+}
+
+.toast-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(8, 17, 31, 0.96);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.toast-card strong {
+  font-size: 0.95rem;
+}
+
+.toast-card span {
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .editor-shell {

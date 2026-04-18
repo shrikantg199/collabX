@@ -1,12 +1,39 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import axios from "axios";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ChatBox from "@/components/ChatBox";
 import Editor from "@/components/Editor";
 import api from "@/lib/api";
 import { connectSocket, disconnectSocket } from "@/lib/socket";
-import type { Message, User, Workspace } from "@/types";
+import type { Message, TypingUser, User, Workspace } from "@/types";
+
+type ToastNotification = {
+  id: string;
+  workspaceId: string;
+  title: string;
+  body: string;
+};
+
+function getRequestErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    const serverMessage = error.response?.data?.message?.trim();
+
+    if (serverMessage) {
+      return serverMessage;
+    }
+
+    if (!error.response) {
+      return "The app could not reach the API. Make sure the server is still running.";
+    }
+  }
+
+  return fallbackMessage;
+}
 
 export default function WorkspacePage() {
   const router = useRouter();
@@ -14,6 +41,9 @@ export default function WorkspacePage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [workspaceName, setWorkspaceName] = useState("");
   const [workspaceCode, setWorkspaceCode] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -26,9 +56,15 @@ export default function WorkspacePage() {
   const [profileError, setProfileError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const toastTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const activeWorkspaceIdRef = useRef("");
+  const userIdRef = useRef("");
+  const workspacesRef = useRef<Workspace[]>([]);
 
   const activeWorkspace = useMemo(
     () =>
@@ -46,6 +82,90 @@ export default function WorkspacePage() {
       .map((part) => part[0]?.toUpperCase() ?? "")
       .join("");
   }, [profileName, user?.name]);
+
+  function clearUnreadCount(workspaceId: string) {
+    if (!workspaceId) {
+      return;
+    }
+
+    setUnreadCounts((current) => {
+      if (!current[workspaceId]) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [workspaceId]: 0,
+      };
+    });
+  }
+
+  function removeToast(toastId: string) {
+    const timeoutId = toastTimeoutsRef.current[toastId];
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      delete toastTimeoutsRef.current[toastId];
+    }
+
+    setToasts((current) => current.filter((toast) => toast.id !== toastId));
+  }
+
+  function addToast(workspaceId: string, title: string, body: string) {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    setToasts((current) => [
+      ...current.slice(-2),
+      { id, workspaceId, title, body },
+    ]);
+
+    toastTimeoutsRef.current[id] = setTimeout(() => {
+      removeToast(id);
+    }, 4000);
+  }
+
+  function maybeShowBrowserNotification(message: Message) {
+    if (
+      typeof window === "undefined" ||
+      typeof Notification === "undefined" ||
+      Notification.permission !== "granted" ||
+      !document.hidden
+    ) {
+      return;
+    }
+
+    const workspaceName =
+      workspacesRef.current.find(
+        (workspace) => workspace._id === message.workspace,
+      )?.name ?? "Workspace";
+
+    const notification = new Notification(
+      `${message.user?.name ?? "Someone"} in ${workspaceName}`,
+      {
+        body: message.text,
+        icon: message.user?.photoUrl || undefined,
+        tag: `workspace-${message.workspace}`,
+      },
+    );
+
+    notification.onclick = () => {
+      window.focus();
+      setActiveWorkspaceId(message.workspace);
+      clearUnreadCount(message.workspace);
+      notification.close();
+    };
+  }
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = activeWorkspaceId;
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    userIdRef.current = user?._id ?? "";
+  }, [user?._id]);
+
+  useEffect(() => {
+    workspacesRef.current = workspaces;
+  }, [workspaces]);
 
   useEffect(() => {
     const token = window.localStorage.getItem("collabx_token");
@@ -69,14 +189,132 @@ export default function WorkspacePage() {
 
         const socket = connectSocket(token ?? "");
         socket.off("new-message");
+        socket.off("message-updated");
+        socket.off("message-deleted");
+        socket.off("typing-status");
         socket.on("new-message", (message: Message) => {
-          setMessages((current) => {
-            const alreadyExists = current.some(
-              (entry) => entry._id === message._id,
+          const isOwnMessage = message.user?._id === userIdRef.current;
+          const isActiveWorkspace =
+            message.workspace === activeWorkspaceIdRef.current;
+          const shouldMarkUnread = !isOwnMessage && (!isActiveWorkspace || document.hidden);
+          const shouldToast = !isOwnMessage && !document.hidden && !isActiveWorkspace;
+
+          if (isActiveWorkspace) {
+            setMessages((current) => {
+              const alreadyExists = current.some(
+                (entry) => entry._id === message._id,
+              );
+              return alreadyExists ? current : [...current, message];
+            });
+          }
+
+          if (shouldMarkUnread) {
+            setUnreadCounts((current) => ({
+              ...current,
+              [message.workspace]: (current[message.workspace] ?? 0) + 1,
+            }));
+          }
+
+          if (shouldToast) {
+            const workspaceName =
+              workspacesRef.current.find(
+                (workspace) => workspace._id === message.workspace,
+              )?.name ?? "Workspace";
+
+            addToast(
+              message.workspace,
+              `${message.user?.name ?? "Someone"} in ${workspaceName}`,
+              message.text,
             );
-            return alreadyExists ? current : [...current, message];
-          });
+          }
+
+          if (!isOwnMessage) {
+            maybeShowBrowserNotification(message);
+          }
         });
+        socket.on("message-updated", (message: Message) => {
+          if (message.workspace !== activeWorkspaceIdRef.current) {
+            return;
+          }
+
+          setMessages((current) =>
+            current.map((entry) =>
+              entry._id === message._id ? message : entry,
+            ),
+          );
+        });
+        socket.on(
+          "message-deleted",
+          ({
+            workspaceId,
+            messageId,
+          }: {
+            workspaceId: string;
+            messageId: string;
+          }) => {
+            if (workspaceId !== activeWorkspaceIdRef.current) {
+              return;
+            }
+
+            setMessages((current) =>
+              current.filter((entry) => entry._id !== messageId),
+            );
+          },
+        );
+        socket.on(
+          "typing-status",
+          ({
+            workspaceId,
+            isTyping,
+            user: typingUser,
+          }: {
+            workspaceId: string;
+            isTyping: boolean;
+            user: TypingUser;
+          }) => {
+            if (
+              !typingUser?._id ||
+              typingUser._id === userIdRef.current ||
+              workspaceId !== activeWorkspaceIdRef.current
+            ) {
+              return;
+            }
+
+            const existingTimeout = typingTimeoutsRef.current[typingUser._id];
+            if (existingTimeout) {
+              clearTimeout(existingTimeout);
+              delete typingTimeoutsRef.current[typingUser._id];
+            }
+
+            if (!isTyping) {
+              setTypingUsers((current) =>
+                current.filter((entry) => entry._id !== typingUser._id),
+              );
+              return;
+            }
+
+            setTypingUsers((current) => {
+              const exists = current.some(
+                (entry) => entry._id === typingUser._id,
+              );
+
+              if (exists) {
+                return current.map((entry) =>
+                  entry._id === typingUser._id ? typingUser : entry,
+                );
+              }
+
+              return [...current, typingUser];
+            });
+
+            typingTimeoutsRef.current[typingUser._id] = setTimeout(() => {
+              setTypingUsers((current) =>
+                current.filter((entry) => entry._id !== typingUser._id),
+              );
+              delete typingTimeoutsRef.current[typingUser._id];
+            }, 2500);
+          },
+        );
       } catch {
         window.localStorage.removeItem("collabx_token");
         window.localStorage.removeItem("collabx_user");
@@ -89,6 +327,14 @@ export default function WorkspacePage() {
     bootstrap();
 
     return () => {
+      Object.values(typingTimeoutsRef.current).forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      typingTimeoutsRef.current = {};
+      Object.values(toastTimeoutsRef.current).forEach((timeoutId) => {
+        clearTimeout(timeoutId);
+      });
+      toastTimeoutsRef.current = {};
       disconnectSocket();
     };
   }, [router]);
@@ -96,8 +342,15 @@ export default function WorkspacePage() {
   useEffect(() => {
     if (!activeWorkspaceId) {
       setMessages([]);
+      setTypingUsers([]);
       return;
     }
+
+    setTypingUsers([]);
+    Object.values(typingTimeoutsRef.current).forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    typingTimeoutsRef.current = {};
 
     async function loadMessages() {
       try {
@@ -123,6 +376,50 @@ export default function WorkspacePage() {
 
     loadMessages();
   }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!workspaces.length) {
+      return;
+    }
+
+    const socket = connectSocket(window.localStorage.getItem("collabx_token") ?? "");
+
+    workspaces.forEach((workspace) => {
+      socket.emit("join-workspace", { workspaceId: workspace._id });
+    });
+  }, [workspaces]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || document.hidden) {
+      return;
+    }
+
+    clearUnreadCount(activeWorkspaceId);
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (!document.hidden && activeWorkspaceIdRef.current) {
+        clearUnreadCount(activeWorkspaceIdRef.current);
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof Notification === "undefined" || Notification.permission !== "default") {
+      return;
+    }
+
+    Notification.requestPermission().catch(() => {
+      return;
+    });
+  }, []);
 
   async function createWorkspace() {
     if (!workspaceName.trim()) {
@@ -210,10 +507,47 @@ export default function WorkspacePage() {
       );
       window.localStorage.setItem("collabx_user", JSON.stringify(data.user));
       setProfileSuccess("Profile updated.");
-    } catch {
-      setProfileError("We could not update your name yet.");
+    } catch (error) {
+      setProfileError(
+        getRequestErrorMessage(error, "We could not update your name yet."),
+      );
     } finally {
       setIsSavingProfile(false);
+    }
+  }
+
+  async function handleProfilePhotoUpload(
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setProfileError("");
+    setProfileSuccess("");
+
+    try {
+      const formData = new FormData();
+      formData.append("photo", file);
+
+      const { data } = await api.post("/auth/profile-photo", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      setProfilePhotoUrl(data.photoUrl);
+      setProfileSuccess("Photo uploaded. Save Profile to apply it.");
+    } catch (error) {
+      setProfileError(
+        getRequestErrorMessage(error, "We could not upload your photo yet."),
+      );
+    } finally {
+      setIsUploadingPhoto(false);
+      event.target.value = "";
     }
   }
 
@@ -250,8 +584,10 @@ export default function WorkspacePage() {
       setNewPassword("");
       setConfirmPassword("");
       setPasswordSuccess("Password updated.");
-    } catch {
-      setPasswordError("We could not change your password yet.");
+    } catch (error) {
+      setPasswordError(
+        getRequestErrorMessage(error, "We could not change your password yet."),
+      );
     } finally {
       setIsSavingPassword(false);
     }
@@ -340,6 +676,16 @@ export default function WorkspacePage() {
                 value={profilePhotoUrl}
                 onChange={(event) => setProfilePhotoUrl(event.target.value)}
               />
+              <label className="button secondary" style={{ textAlign: "center" }}>
+                {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleProfilePhotoUpload}
+                  disabled={isUploadingPhoto}
+                  style={{ display: "none" }}
+                />
+              </label>
               <input
                 className="input"
                 value={user?.email ?? ""}
@@ -446,7 +792,14 @@ export default function WorkspacePage() {
                     }`}
                     onClick={() => setActiveWorkspaceId(workspace._id)}
                   >
-                    <div>{workspace.name}</div>
+                    <div className="row wrap" style={{ justifyContent: "space-between" }}>
+                      <div>{workspace.name}</div>
+                      {unreadCounts[workspace._id] ? (
+                        <span className="unread-badge">
+                          {unreadCounts[workspace._id]}
+                        </span>
+                      ) : null}
+                    </div>
                     <small className="muted">
                       Invite code: {workspace.code}
                     </small>
@@ -463,11 +816,35 @@ export default function WorkspacePage() {
           </aside>
 
           <section className="workspace-main">
-            <ChatBox activeWorkspace={activeWorkspace} messages={messages} />
+            <ChatBox
+              activeWorkspace={activeWorkspace}
+              messages={messages}
+              currentUserId={user?._id ?? ""}
+              typingUsers={typingUsers}
+            />
             <Editor activeWorkspace={activeWorkspace} />
           </section>
         </div>
       </div>
+      {toasts.length ? (
+        <div className="toast-stack">
+          {toasts.map((toast) => (
+            <button
+              key={toast.id}
+              className="toast-card"
+              type="button"
+              onClick={() => {
+                setActiveWorkspaceId(toast.workspaceId);
+                clearUnreadCount(toast.workspaceId);
+                removeToast(toast.id);
+              }}
+            >
+              <strong>{toast.title}</strong>
+              <span>{toast.body}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </main>
   );
 }

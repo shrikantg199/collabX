@@ -1,5 +1,6 @@
 const cors = require("cors");
 const express = require("express");
+const path = require("path");
 const authRoutes = require("./routes/auth.routes");
 const messageRoutes = require("./routes/message.routes");
 const workspaceRoutes = require("./routes/workspace.routes");
@@ -36,6 +37,7 @@ function createApp() {
     })
   );
   app.use(express.json());
+  app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, message: "CollabX API is live." });
@@ -44,6 +46,26 @@ function createApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/workspaces", workspaceRoutes);
   app.use("/api/messages", messageRoutes);
+
+  app.use((error, _req, res, _next) => {
+    if (res.headersSent) {
+      return;
+    }
+
+    if (error?.name === "MulterError") {
+      const message = error.code === "LIMIT_FILE_SIZE"
+        ? "Image size must be 5MB or less."
+        : error.message || "Photo upload failed.";
+
+      res.status(400).json({ message });
+      return;
+    }
+
+    if (error) {
+      res.status(400).json({ message: error.message || "Request failed." });
+      return;
+    }
+  });
 
   return app;
 }
