@@ -60,8 +60,10 @@ export default function WorkspacePage() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [copiedWorkspaceCode, setCopiedWorkspaceCode] = useState("");
   const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const toastTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeWorkspaceIdRef = useRef("");
   const userIdRef = useRef("");
   const workspacesRef = useRef<Workspace[]>([]);
@@ -335,6 +337,9 @@ export default function WorkspacePage() {
         clearTimeout(timeoutId);
       });
       toastTimeoutsRef.current = {};
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
       disconnectSocket();
     };
   }, [router]);
@@ -600,6 +605,27 @@ export default function WorkspacePage() {
     router.replace("/login");
   }
 
+  async function copyWorkspaceCode(code: string) {
+    if (!code || typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedWorkspaceCode(code);
+
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+
+      copyTimeoutRef.current = setTimeout(() => {
+        setCopiedWorkspaceCode("");
+      }, 1800);
+    } catch {
+      setError("We could not copy the invite code.");
+    }
+  }
+
   if (loading) {
     return (
       <main className="shell">
@@ -627,7 +653,43 @@ export default function WorkspacePage() {
 
           <div className="row wrap">
             {activeWorkspace ? (
-              <span className="code-badge">Code: {activeWorkspace.code}</span>
+              <div className="code-badge">
+                <span>Code: {activeWorkspace.code}</span>
+                <button
+                  type="button"
+                  className="code-copy-button"
+                  onClick={() => copyWorkspaceCode(activeWorkspace.code)}
+                  aria-label={`Copy invite code ${activeWorkspace.code}`}
+                  title="Copy invite code"
+                >
+                  {copiedWorkspaceCode === activeWorkspace.code ? (
+                    <span className="code-copy-status">Copied</span>
+                  ) : (
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      className="code-copy-icon"
+                    >
+                      <path
+                        d="M9 9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2V9Z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </button>
+              </div>
             ) : null}
             <button className="button secondary" onClick={handleLogout}>
               Logout

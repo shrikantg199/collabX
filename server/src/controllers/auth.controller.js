@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
+const { uploadBuffer } = require("../utils/cloudinary");
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -147,10 +148,26 @@ async function uploadProfilePhoto(req, res) {
       return res.status(400).json({ message: "Please choose an image to upload." });
     }
 
-    const filePath = `/uploads/profile-photos/${req.file.filename}`;
-    const photoUrl = `${req.protocol}://${req.get("host")}${filePath}`;
+    const uploadedPhoto = await uploadBuffer(req.file.buffer, {
+      folder: "collabx/profile-photos",
+      resource_type: "image",
+      public_id: `user-${req.user._id}-${Date.now()}`,
+      overwrite: true,
+    });
 
-    return res.status(201).json({ photoUrl });
+    const photoUrl = uploadedPhoto.secure_url || uploadedPhoto.url;
+
+    if (!photoUrl) {
+      return res.status(500).json({ message: "Cloudinary did not return a photo URL." });
+    }
+
+    req.user.photoUrl = photoUrl;
+    await req.user.save();
+
+    return res.status(201).json({
+      photoUrl,
+      user: sanitizeUser(req.user),
+    });
   } catch (error) {
     return res.status(500).json({ message: error.message || "Photo upload failed." });
   }

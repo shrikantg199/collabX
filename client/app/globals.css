@@ -434,6 +434,35 @@ button {
   font-family: var(--font-mono);
 }
 
+.code-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+}
+
+.code-copy-button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.code-copy-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.code-copy-status {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 980px) {
   .auth-layout,
   .workspace-grid {
