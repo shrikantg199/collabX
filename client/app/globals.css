@@ -414,6 +414,9 @@ button {
 
 .editor-shell {
   min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .editor-hint {
@@ -421,6 +424,20 @@ button {
   border: 1px dashed rgba(255, 255, 255, 0.18);
   padding: 16px;
   color: var(--muted);
+}
+
+.editor-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.editor-textarea {
+  min-height: 340px;
+  flex: 1;
+  line-height: 1.6;
 }
 
 .code-badge {

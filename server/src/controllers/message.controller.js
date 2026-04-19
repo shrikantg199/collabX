@@ -1,21 +1,18 @@
 const Message = require("../models/Message");
-const Workspace = require("../models/Workspace");
+const { getWorkspaceForMember } = require("../utils/workspace-access");
 
 async function getWorkspaceMessages(req, res) {
   try {
     const { workspaceId } = req.params;
 
-    const workspace = await Workspace.findById(workspaceId);
-    if (!workspace) {
-      return res.status(404).json({ message: "Workspace not found." });
-    }
-
-    const canAccess = workspace.members.some(
-      (memberId) => memberId.toString() === req.user._id.toString()
+    const { error, status } = await getWorkspaceForMember(
+      workspaceId,
+      req.user._id,
+      "members"
     );
 
-    if (!canAccess) {
-      return res.status(403).json({ message: "You are not a member of this workspace." });
+    if (error) {
+      return res.status(status).json({ message: error });
     }
 
     const messages = await Message.find({ workspace: workspaceId })

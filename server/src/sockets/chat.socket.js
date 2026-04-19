@@ -1,10 +1,12 @@
 const jwt = require("jsonwebtoken");
+const Document = require("../models/Document");
 const Message = require("../models/Message");
 const User = require("../models/User");
-const Workspace = require("../models/Workspace");
 const { publish, subscribe } = require("../config/redis");
+const { getWorkspaceForMember } = require("../utils/workspace-access");
 
 const MESSAGE_CHANNEL = "collabx:workspace:messages";
+const DOCUMENT_CHANNEL = "collabx:workspace:documents";
 const REDIS_DEBUG_LOGS = process.env.REDIS_DEBUG_LOGS === "true";
 
 function logRedisDebug(message, details) {
@@ -25,21 +27,7 @@ function serializeUser(user) {
 }
 
 async function validateWorkspaceMembership(workspaceId, userId) {
-  const workspace = await Workspace.findById(workspaceId).select("members").lean();
-
-  if (!workspace) {
-    return { error: "Workspace not found." };
-  }
-
-  const isMember = workspace.members.some(
-    (memberId) => memberId.toString() === userId.toString()
-  );
-
-  if (!isMember) {
-    return { error: "You are not a member of this workspace." };
-  }
-
-  return { workspace };
+  return getWorkspaceForMember(workspaceId, userId, "members");
 }
 
 async function getWorkspaceMessage(messageId, workspaceId) {
@@ -71,6 +59,23 @@ function emitWorkspaceEvent(io, event) {
         user: event.user,
       });
       return;
+    case "document.updated":
+      io.to(`doc-${event.workspaceId}`).emit("document-updated", {
+        workspaceId: event.workspaceId,
+        content: event.content,
+        updatedAt: event.updatedAt,
+        userId: event.userId,
+        socketId: event.socketId,
+      });
+      return;
+    case "document.typing.updated":
+      io.to(`doc-${event.workspaceId}`).emit("document-typing-updated", {
+        workspaceId: event.workspaceId,
+        isTyping: event.isTyping,
+        user: event.user,
+        socketId: event.socketId,
+      });
+      return;
     default:
       return;
   }
@@ -87,6 +92,25 @@ function getRedisDebugDetails(event) {
       workspaceId: event.workspaceId,
       userId: event.user?._id,
       isTyping: event.isTyping,
+      type: event.type,
+    };
+  }
+
+  if (event.type === "document.typing.updated") {
+    return {
+      channel: DOCUMENT_CHANNEL,
+      workspaceId: event.workspaceId,
+      userId: event.user?._id,
+      isTyping: event.isTyping,
+      type: event.type,
+    };
+  }
+
+  if (event.type === "document.updated") {
+    return {
+      channel: DOCUMENT_CHANNEL,
+      workspaceId: event.workspaceId,
+      userId: event.userId,
       type: event.type,
     };
   }
@@ -113,9 +137,22 @@ async function publishWorkspaceEvent(io, event) {
   return false;
 }
 
+async function publishDocumentEvent(io, event) {
+  const publishedToRedis = await publish(DOCUMENT_CHANNEL, event);
+
+  if (publishedToRedis) {
+    logRedisDebug("published document event to Redis", getRedisDebugDetails(event));
+    return true;
+  }
+
+  logRedisDebug("Redis publish unavailable, falling back to local document broadcast", getRedisDebugDetails(event));
+  emitWorkspaceEvent(io, event);
+  return false;
+}
+
 function emitStoppedTypingForJoinedRooms(io, socket) {
   const joinedWorkspaceIds = Array.from(socket.rooms).filter(
-    (roomId) => roomId !== socket.id
+    (roomId) => roomId !== socket.id && !roomId.startsWith("doc-")
   );
 
   return Promise.all(
@@ -140,8 +177,21 @@ async function attachChatHandlers(io) {
     emitWorkspaceEvent(io, event);
   });
 
+  const documentRedisSubscribed = await subscribe(DOCUMENT_CHANNEL, (event) => {
+    if (!event?.type || !event.workspaceId) {
+      return;
+    }
+
+    logRedisDebug("received document event from Redis", getRedisDebugDetails(event));
+    emitWorkspaceEvent(io, event);
+  });
+
   if (!redisSubscribed) {
     console.warn("Chat sockets are running without Redis Pub/Sub. Broadcasts stay on this server instance.");
+  }
+
+  if (!documentRedisSubscribed) {
+    console.warn("Document sockets are running without Redis Pub/Sub. Broadcasts stay on this server instance.");
   }
 
   io.use(async (socket, next) => {
@@ -189,6 +239,46 @@ async function attachChatHandlers(io) {
       } catch (error) {
         callback?.({ error: error.message || "Could not join workspace." });
       }
+    });
+
+    socket.on("join-document", async ({ workspaceId }, callback) => {
+      try {
+        if (!workspaceId) {
+          callback?.({ error: "Workspace is required." });
+          return;
+        }
+
+        const { error } = await validateWorkspaceMembership(
+          workspaceId,
+          socket.data.user._id
+        );
+
+        if (error) {
+          callback?.({ error });
+          return;
+        }
+
+        await socket.join(`doc-${workspaceId}`);
+        callback?.({ ok: true, workspaceId });
+      } catch (error) {
+        callback?.({ error: error.message || "Could not join document." });
+      }
+    });
+
+    socket.on("leave-document", async ({ workspaceId }) => {
+      if (!workspaceId) {
+        return;
+      }
+
+      await socket.leave(`doc-${workspaceId}`);
+
+      await publishDocumentEvent(io, {
+        type: "document.typing.updated",
+        workspaceId,
+        isTyping: false,
+        user: serializeUser(socket.data.user),
+        socketId: socket.id,
+      });
     });
 
     socket.on("send-message", async ({ workspaceId, text }, callback) => {
@@ -335,8 +425,103 @@ async function attachChatHandlers(io) {
       });
     });
 
+    socket.on("document-typing", async ({ workspaceId, isTyping }) => {
+      if (!workspaceId) {
+        return;
+      }
+
+      const { error } = await validateWorkspaceMembership(
+        workspaceId,
+        socket.data.user._id
+      );
+
+      if (error) {
+        return;
+      }
+
+      await publishDocumentEvent(io, {
+        type: "document.typing.updated",
+        workspaceId,
+        isTyping: Boolean(isTyping),
+        user: serializeUser(socket.data.user),
+        socketId: socket.id,
+      });
+    });
+
+    socket.on("edit-document", async ({ workspaceId, content }, callback) => {
+      try {
+        if (!workspaceId || typeof content !== "string") {
+          callback?.({ error: "Workspace and content are required." });
+          return;
+        }
+
+        const { error } = await validateWorkspaceMembership(
+          workspaceId,
+          socket.data.user._id
+        );
+
+        if (error) {
+          callback?.({ error });
+          return;
+        }
+
+        const document = await Document.findOneAndUpdate(
+          { workspace: workspaceId },
+          {
+            $set: {
+              content,
+            },
+            $setOnInsert: {
+              workspace: workspaceId,
+            },
+          },
+          {
+            new: true,
+            upsert: true,
+          }
+        ).lean();
+
+        await publishDocumentEvent(io, {
+          type: "document.updated",
+          workspaceId,
+          content: document.content,
+          updatedAt: document.updatedAt,
+          userId: socket.data.user._id.toString(),
+          socketId: socket.id,
+        });
+
+        callback?.({
+          ok: true,
+          document: {
+            _id: document._id,
+            workspace: document.workspace,
+            content: document.content,
+            updatedAt: document.updatedAt,
+          },
+        });
+      } catch (error) {
+        callback?.({ error: error.message || "Document update failed." });
+      }
+    });
+
     socket.on("disconnecting", () => {
       void emitStoppedTypingForJoinedRooms(io, socket);
+
+      const joinedDocumentRooms = Array.from(socket.rooms).filter(
+        (roomId) => roomId.startsWith("doc-")
+      );
+
+      void Promise.all(
+        joinedDocumentRooms.map((roomId) =>
+          publishDocumentEvent(io, {
+            type: "document.typing.updated",
+            workspaceId: roomId.replace("doc-", ""),
+            isTyping: false,
+            user: serializeUser(socket.data.user),
+            socketId: socket.id,
+          })
+        )
+      );
     });
   });
 }

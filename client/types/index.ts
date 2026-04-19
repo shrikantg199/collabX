@@ -12,6 +12,14 @@ export type Workspace = {
   createdBy: string;
 };
 
+export type Document = {
+  _id: string;
+  workspace: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Message = {
   _id: string;
   workspace: string;
