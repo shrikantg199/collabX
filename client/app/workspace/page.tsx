@@ -16,10 +16,7 @@ type ToastNotification = {
   body: string;
 };
 
-function getRequestErrorMessage(
-  error: unknown,
-  fallbackMessage: string,
-) {
+function getRequestErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError<{ message?: string }>(error)) {
     const serverMessage = error.response?.data?.message?.trim();
 
@@ -61,8 +58,23 @@ export default function WorkspacePage() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [copiedWorkspaceCode, setCopiedWorkspaceCode] = useState("");
-  const typingTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const toastTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [isLeavingWorkspace, setIsLeavingWorkspace] = useState(false);
+  const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+  const [isTransferringOwnership, setIsTransferringOwnership] = useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = useState<any[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedMemberToRemove, setSelectedMemberToRemove] = useState<
+    string | null
+  >(null);
+  const [selectedNewOwner, setSelectedNewOwner] = useState("");
+  const typingTimeoutsRef = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
+  const toastTimeoutsRef = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeWorkspaceIdRef = useRef("");
   const userIdRef = useRef("");
@@ -74,6 +86,10 @@ export default function WorkspacePage() {
       null,
     [activeWorkspaceId, workspaces],
   );
+  const isCreator = useMemo(() => {
+    if (!activeWorkspace || !user) return false;
+    return activeWorkspace.createdBy === user._id;
+  }, [activeWorkspace, user]);
   const avatarInitials = useMemo(() => {
     const source = profileName || user?.name || "CX";
 
@@ -187,7 +203,21 @@ export default function WorkspacePage() {
         setProfileName(me.user.name);
         setProfilePhotoUrl(me.user.photoUrl ?? "");
         setWorkspaces(workspaceData.workspaces);
-        setActiveWorkspaceId(workspaceData.workspaces[0]?._id ?? "");
+
+        // Check if there's a workspace ID in the URL
+        const params = new URLSearchParams(window.location.search);
+        const workspaceIdFromUrl = params.get("id");
+
+        if (
+          workspaceIdFromUrl &&
+          workspaceData.workspaces.some(
+            (w: Workspace) => w._id === workspaceIdFromUrl,
+          )
+        ) {
+          setActiveWorkspaceId(workspaceIdFromUrl);
+        } else {
+          setActiveWorkspaceId(workspaceData.workspaces[0]?._id ?? "");
+        }
 
         const socket = connectSocket(token ?? "");
         socket.off("new-message");
@@ -198,8 +228,10 @@ export default function WorkspacePage() {
           const isOwnMessage = message.user?._id === userIdRef.current;
           const isActiveWorkspace =
             message.workspace === activeWorkspaceIdRef.current;
-          const shouldMarkUnread = !isOwnMessage && (!isActiveWorkspace || document.hidden);
-          const shouldToast = !isOwnMessage && !document.hidden && !isActiveWorkspace;
+          const shouldMarkUnread =
+            !isOwnMessage && (!isActiveWorkspace || document.hidden);
+          const shouldToast =
+            !isOwnMessage && !document.hidden && !isActiveWorkspace;
 
           if (isActiveWorkspace) {
             setMessages((current) => {
@@ -387,7 +419,9 @@ export default function WorkspacePage() {
       return;
     }
 
-    const socket = connectSocket(window.localStorage.getItem("collabx_token") ?? "");
+    const socket = connectSocket(
+      window.localStorage.getItem("collabx_token") ?? "",
+    );
 
     workspaces.forEach((workspace) => {
       socket.emit("join-workspace", { workspaceId: workspace._id });
@@ -417,7 +451,10 @@ export default function WorkspacePage() {
   }, []);
 
   useEffect(() => {
-    if (typeof Notification === "undefined" || Notification.permission !== "default") {
+    if (
+      typeof Notification === "undefined" ||
+      Notification.permission !== "default"
+    ) {
       return;
     }
 
@@ -605,6 +642,176 @@ export default function WorkspacePage() {
     router.replace("/login");
   }
 
+  async function leaveWorkspace(workspaceId: string) {
+    if (!workspaceId) {
+      return;
+    }
+
+    const workspace = workspaces.find((w) => w._id === workspaceId);
+    if (!workspace) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to leave "${workspace.name}"? You will need a new invite code to rejoin.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsLeavingWorkspace(true);
+    setError("");
+
+    try {
+      await api.post(`/workspaces/${workspaceId}/leave`);
+
+      // Remove workspace from list
+      setWorkspaces((current) => current.filter((w) => w._id !== workspaceId));
+
+      // If this was the active workspace, switch to another one or clear it
+      if (activeWorkspaceId === workspaceId) {
+        const remainingWorkspaces = workspaces.filter(
+          (w) => w._id !== workspaceId,
+        );
+        if (remainingWorkspaces.length > 0) {
+          setActiveWorkspaceId(remainingWorkspaces[0]._id);
+        } else {
+          setActiveWorkspaceId("");
+          setMessages([]);
+          setTypingUsers([]);
+        }
+      }
+    } catch (error) {
+      setError(
+        getRequestErrorMessage(error, "We could not leave the workspace."),
+      );
+    } finally {
+      setIsLeavingWorkspace(false);
+    }
+  }
+
+  async function loadWorkspaceMembers(workspaceId: string) {
+    if (!workspaceId) return;
+
+    setIsLoadingMembers(true);
+    try {
+      const { data } = await api.get(`/workspaces/${workspaceId}/members`);
+      setWorkspaceMembers(data.members || []);
+    } catch (error) {
+      setError(
+        getRequestErrorMessage(error, "Could not load workspace members."),
+      );
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  }
+
+  async function deleteWorkspace(workspaceId: string) {
+    if (!workspaceId) return;
+
+    const workspace = workspaces.find((w) => w._id === workspaceId);
+    if (!workspace) return;
+
+    const confirmed = window.confirm(
+      `⚠️ WARNING: This will permanently delete "${workspace.name}" including all messages and documents. This action cannot be undone. Are you sure?`,
+    );
+
+    if (!confirmed) return;
+
+    setIsDeletingWorkspace(true);
+    setError("");
+
+    try {
+      await api.delete(`/workspaces/${workspaceId}`);
+
+      // Remove workspace from list
+      setWorkspaces((current) => current.filter((w) => w._id !== workspaceId));
+
+      // If this was the active workspace, switch to another one
+      if (activeWorkspaceId === workspaceId) {
+        const remainingWorkspaces = workspaces.filter(
+          (w) => w._id !== workspaceId,
+        );
+        if (remainingWorkspaces.length > 0) {
+          setActiveWorkspaceId(remainingWorkspaces[0]._id);
+        } else {
+          setActiveWorkspaceId("");
+          setMessages([]);
+          setTypingUsers([]);
+        }
+      }
+    } catch (error) {
+      setError(getRequestErrorMessage(error, "Could not delete workspace."));
+    } finally {
+      setIsDeletingWorkspace(false);
+    }
+  }
+
+  async function transferOwnership(workspaceId: string, newOwnerId: string) {
+    if (!workspaceId || !newOwnerId) return;
+
+    const member = workspaceMembers.find((m) => m._id === newOwnerId);
+    if (!member) return;
+
+    const confirmed = window.confirm(
+      `Transfer ownership of this workspace to ${member.name}? They will become the new creator.`,
+    );
+
+    if (!confirmed) return;
+
+    setIsTransferringOwnership(true);
+    setError("");
+
+    try {
+      await api.post(`/workspaces/${workspaceId}/transfer`, {
+        newOwnerId,
+      });
+
+      setShowTransferModal(false);
+      setSelectedNewOwner("");
+
+      // Reload workspaces to get updated data
+      const { data } = await api.get("/workspaces");
+      setWorkspaces(data.workspaces);
+    } catch (error) {
+      setError(getRequestErrorMessage(error, "Could not transfer ownership."));
+    } finally {
+      setIsTransferringOwnership(false);
+    }
+  }
+
+  async function removeMember(workspaceId: string, memberId: string) {
+    if (!workspaceId || !memberId) return;
+
+    const member = workspaceMembers.find((m) => m._id === memberId);
+    if (!member) return;
+
+    const confirmed = window.confirm(
+      `Remove ${member.name} from this workspace?`,
+    );
+
+    if (!confirmed) return;
+
+    setSelectedMemberToRemove(memberId);
+    setError("");
+
+    try {
+      await api.delete(`/workspaces/${workspaceId}/members/${memberId}`);
+
+      // Reload members list
+      await loadWorkspaceMembers(workspaceId);
+
+      // Reload workspaces
+      const { data } = await api.get("/workspaces");
+      setWorkspaces(data.workspaces);
+    } catch (error) {
+      setError(getRequestErrorMessage(error, "Could not remove member."));
+    } finally {
+      setSelectedMemberToRemove(null);
+    }
+  }
+
   async function copyWorkspaceCode(code: string) {
     if (!code || typeof navigator === "undefined" || !navigator.clipboard) {
       return;
@@ -738,7 +945,10 @@ export default function WorkspacePage() {
                 value={profilePhotoUrl}
                 onChange={(event) => setProfilePhotoUrl(event.target.value)}
               />
-              <label className="button secondary" style={{ textAlign: "center" }}>
+              <label
+                className="button secondary"
+                style={{ textAlign: "center" }}
+              >
                 {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
                 <input
                   type="file"
@@ -846,27 +1056,101 @@ export default function WorkspacePage() {
                 </span>
               </div>
               <div className="workspace-list">
-                {workspaces.map((workspace) => (
-                  <button
-                    key={workspace._id}
-                    className={`workspace-item ${
-                      workspace._id === activeWorkspaceId ? "active" : ""
-                    }`}
-                    onClick={() => setActiveWorkspaceId(workspace._id)}
-                  >
-                    <div className="row wrap" style={{ justifyContent: "space-between" }}>
-                      <div>{workspace.name}</div>
-                      {unreadCounts[workspace._id] ? (
-                        <span className="unread-badge">
-                          {unreadCounts[workspace._id]}
-                        </span>
-                      ) : null}
+                {workspaces.map((workspace) => {
+                  const isWorkspaceCreator = workspace.createdBy === user?._id;
+
+                  return (
+                    <div key={workspace._id} style={{ marginBottom: 12 }}>
+                      <button
+                        className={`workspace-item ${
+                          workspace._id === activeWorkspaceId ? "active" : ""
+                        }`}
+                        onClick={() => setActiveWorkspaceId(workspace._id)}
+                      >
+                        <div
+                          className="row wrap"
+                          style={{ justifyContent: "space-between" }}
+                        >
+                          <div>
+                            {workspace.name}
+                            {isWorkspaceCreator && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: 11,
+                                  opacity: 0.7,
+                                }}
+                              >
+                                👑 Creator
+                              </span>
+                            )}
+                          </div>
+                          {unreadCounts[workspace._id] ? (
+                            <span className="unread-badge">
+                              {unreadCounts[workspace._id]}
+                            </span>
+                          ) : null}
+                        </div>
+                        <small className="muted">
+                          Invite code: {workspace.code}
+                        </small>
+                      </button>
+                      <div
+                        className="row wrap"
+                        style={{ gap: 8, marginTop: 4, flexWrap: "wrap" }}
+                      >
+                        <button
+                          className="button secondary"
+                          style={{ fontSize: 12, padding: "4px 8px" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push("/dashboard");
+                          }}
+                        >
+                          Dashboard
+                        </button>
+                        {isWorkspaceCreator ? (
+                          <>
+                            <button
+                              className="button secondary"
+                              style={{ fontSize: 12, padding: "4px 8px" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                loadWorkspaceMembers(workspace._id);
+                                setShowMemberModal(true);
+                              }}
+                            >
+                              Manage Members
+                            </button>
+                            <button
+                              className="button warn"
+                              style={{ fontSize: 12, padding: "4px 8px" }}
+                              disabled={isDeletingWorkspace}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteWorkspace(workspace._id);
+                              }}
+                            >
+                              {isDeletingWorkspace ? "Deleting..." : "Delete"}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="button warn"
+                            style={{ fontSize: 12, padding: "4px 8px" }}
+                            disabled={isLeavingWorkspace}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              leaveWorkspace(workspace._id);
+                            }}
+                          >
+                            {isLeavingWorkspace ? "Leaving..." : "Leave"}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <small className="muted">
-                      Invite code: {workspace.code}
-                    </small>
-                  </button>
-                ))}
+                  );
+                })}
                 {workspaces.length === 0 ? (
                   <p className="muted">
                     No workspaces yet. Create one to start chatting.
@@ -907,6 +1191,290 @@ export default function WorkspacePage() {
           ))}
         </div>
       ) : null}
+
+      {/* Member Management Modal */}
+      {showMemberModal && activeWorkspace && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowMemberModal(false)}
+        >
+          <div
+            className="panel"
+            style={{
+              maxWidth: 500,
+              width: "90%",
+              maxHeight: "80vh",
+              overflow: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <h3 style={{ margin: 0 }}>
+                Manage Members - {activeWorkspace.name}
+              </h3>
+              <button
+                className="button secondary"
+                style={{ padding: "4px 12px" }}
+                onClick={() => setShowMemberModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {isLoadingMembers ? (
+              <p className="muted">Loading members...</p>
+            ) : (
+              <>
+                <div style={{ marginBottom: 16 }}>
+                  <button
+                    className="button"
+                    style={{ width: "100%" }}
+                    onClick={() => {
+                      setShowMemberModal(false);
+                      setShowTransferModal(true);
+                    }}
+                  >
+                    Transfer Ownership
+                  </button>
+                </div>
+
+                <h4 style={{ marginBottom: 12 }}>
+                  Members ({workspaceMembers.length})
+                </h4>
+                <div className="stack" style={{ gap: 8 }}>
+                  {workspaceMembers.map((member: any) => {
+                    const isMemberCreator =
+                      member._id === activeWorkspace.createdBy;
+                    const isCurrentUser = member._id === user?._id;
+
+                    return (
+                      <div
+                        key={member._id}
+                        className="row wrap"
+                        style={{
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "8px 12px",
+                          backgroundColor: "var(--color-surface)",
+                          borderRadius: 8,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          {member.photoUrl ? (
+                            <img
+                              src={member.photoUrl}
+                              alt={member.name}
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: 32,
+                                height: 32,
+                                borderRadius: "50%",
+                                backgroundColor: "var(--color-primary)",
+                                color: "white",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 14,
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {member.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 500 }}>
+                              {member.name}
+                              {isMemberCreator && (
+                                <span style={{ marginLeft: 8, fontSize: 11 }}>
+                                  👑 Creator
+                                </span>
+                              )}
+                              {isCurrentUser && (
+                                <span
+                                  style={{
+                                    marginLeft: 8,
+                                    fontSize: 11,
+                                    opacity: 0.7,
+                                  }}
+                                >
+                                  (You)
+                                </span>
+                              )}
+                            </div>
+                            <small className="muted">{member.email}</small>
+                          </div>
+                        </div>
+                        {!isMemberCreator && !isCurrentUser && (
+                          <button
+                            className="button warn"
+                            style={{ fontSize: 12, padding: "4px 8px" }}
+                            disabled={selectedMemberToRemove === member._id}
+                            onClick={() =>
+                              removeMember(activeWorkspace._id, member._id)
+                            }
+                          >
+                            {selectedMemberToRemove === member._id
+                              ? "Removing..."
+                              : "Remove"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Ownership Modal */}
+      {showTransferModal && activeWorkspace && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowTransferModal(false)}
+        >
+          <div
+            className="panel"
+            style={{
+              maxWidth: 500,
+              width: "90%",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <h3 style={{ margin: 0 }}>Transfer Ownership</h3>
+              <button
+                className="button secondary"
+                style={{ padding: "4px 12px" }}
+                onClick={() => setShowTransferModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="muted" style={{ marginBottom: 16 }}>
+              Select a member to transfer ownership of{" "}
+              <strong>{activeWorkspace.name}</strong>. You will remain as a
+              regular member.
+            </p>
+
+            <div className="stack" style={{ gap: 8, marginBottom: 16 }}>
+              {workspaceMembers
+                .filter((member: any) => member._id !== user?._id)
+                .map((member: any) => (
+                  <button
+                    key={member._id}
+                    className={`workspace-item ${selectedNewOwner === member._id ? "active" : ""}`}
+                    onClick={() => setSelectedNewOwner(member._id)}
+                    style={{ textAlign: "left" }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 12 }}
+                    >
+                      {member.photoUrl ? (
+                        <img
+                          src={member.photoUrl}
+                          alt={member.name}
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            backgroundColor: "var(--color-primary)",
+                            color: "white",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 14,
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {member.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 500 }}>{member.name}</div>
+                        <small className="muted">{member.email}</small>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+            </div>
+
+            <button
+              className="button warn"
+              style={{ width: "100%" }}
+              disabled={!selectedNewOwner || isTransferringOwnership}
+              onClick={() =>
+                transferOwnership(activeWorkspace._id, selectedNewOwner)
+              }
+            >
+              {isTransferringOwnership
+                ? "Transferring..."
+                : "Transfer Ownership"}
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

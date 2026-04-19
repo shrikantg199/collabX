@@ -8,7 +8,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const token = window.localStorage.getItem("collabx_token");
-    router.replace(token ? "/workspace" : "/login");
+    router.replace(token ? "/dashboard" : "/login");
   }, [router]);
 
   return <main className="shell" />;
