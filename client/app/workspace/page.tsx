@@ -19,16 +19,10 @@ type ToastNotification = {
 function getRequestErrorMessage(error: unknown, fallbackMessage: string) {
   if (axios.isAxiosError<{ message?: string }>(error)) {
     const serverMessage = error.response?.data?.message?.trim();
-
-    if (serverMessage) {
-      return serverMessage;
-    }
-
-    if (!error.response) {
+    if (serverMessage) return serverMessage;
+    if (!error.response)
       return "The app could not reach the API. Make sure the server is still running.";
-    }
   }
-
   return fallbackMessage;
 }
 
@@ -69,6 +63,14 @@ export default function WorkspacePage() {
     string | null
   >(null);
   const [selectedNewOwner, setSelectedNewOwner] = useState("");
+  const [sidebarTab, setSidebarTab] = useState<"workspaces" | "profile">(
+    "workspaces",
+  );
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // ✅ Chat / Editor tab
+  const [activeTab, setActiveTab] = useState<"chat" | "editor">("chat");
+
   const typingTimeoutsRef = useRef<
     Record<string, ReturnType<typeof setTimeout>>
   >({});
@@ -81,9 +83,7 @@ export default function WorkspacePage() {
   const workspacesRef = useRef<Workspace[]>([]);
 
   const activeWorkspace = useMemo(
-    () =>
-      workspaces.find((workspace) => workspace._id === activeWorkspaceId) ??
-      null,
+    () => workspaces.find((w) => w._id === activeWorkspaceId) ?? null,
     [activeWorkspaceId, workspaces],
   );
   const isCreator = useMemo(() => {
@@ -92,53 +92,35 @@ export default function WorkspacePage() {
   }, [activeWorkspace, user]);
   const avatarInitials = useMemo(() => {
     const source = profileName || user?.name || "CX";
-
     return source
       .split(" ")
       .filter(Boolean)
       .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? "")
+      .map((p) => p[0]?.toUpperCase() ?? "")
       .join("");
   }, [profileName, user?.name]);
 
   function clearUnreadCount(workspaceId: string) {
-    if (!workspaceId) {
-      return;
-    }
-
-    setUnreadCounts((current) => {
-      if (!current[workspaceId]) {
-        return current;
-      }
-
-      return {
-        ...current,
-        [workspaceId]: 0,
-      };
+    if (!workspaceId) return;
+    setUnreadCounts((c) => {
+      if (!c[workspaceId]) return c;
+      return { ...c, [workspaceId]: 0 };
     });
   }
 
   function removeToast(toastId: string) {
-    const timeoutId = toastTimeoutsRef.current[toastId];
-    if (timeoutId) {
-      clearTimeout(timeoutId);
+    const t = toastTimeoutsRef.current[toastId];
+    if (t) {
+      clearTimeout(t);
       delete toastTimeoutsRef.current[toastId];
     }
-
-    setToasts((current) => current.filter((toast) => toast.id !== toastId));
+    setToasts((c) => c.filter((t) => t.id !== toastId));
   }
 
   function addToast(workspaceId: string, title: string, body: string) {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    setToasts((current) => [
-      ...current.slice(-2),
-      { id, workspaceId, title, body },
-    ]);
-
-    toastTimeoutsRef.current[id] = setTimeout(() => {
-      removeToast(id);
-    }, 4000);
+    setToasts((c) => [...c.slice(-2), { id, workspaceId, title, body }]);
+    toastTimeoutsRef.current[id] = setTimeout(() => removeToast(id), 4000);
   }
 
   function maybeShowBrowserNotification(message: Message) {
@@ -147,24 +129,19 @@ export default function WorkspacePage() {
       typeof Notification === "undefined" ||
       Notification.permission !== "granted" ||
       !document.hidden
-    ) {
+    )
       return;
-    }
-
-    const workspaceName =
-      workspacesRef.current.find(
-        (workspace) => workspace._id === message.workspace,
-      )?.name ?? "Workspace";
-
+    const wsName =
+      workspacesRef.current.find((w) => w._id === message.workspace)?.name ??
+      "Workspace";
     const notification = new Notification(
-      `${message.user?.name ?? "Someone"} in ${workspaceName}`,
+      `${message.user?.name ?? "Someone"} in ${wsName}`,
       {
         body: message.text,
         icon: message.user?.photoUrl || undefined,
         tag: `workspace-${message.workspace}`,
       },
     );
-
     notification.onclick = () => {
       window.focus();
       setActiveWorkspaceId(message.workspace);
@@ -176,18 +153,15 @@ export default function WorkspacePage() {
   useEffect(() => {
     activeWorkspaceIdRef.current = activeWorkspaceId;
   }, [activeWorkspaceId]);
-
   useEffect(() => {
     userIdRef.current = user?._id ?? "";
   }, [user?._id]);
-
   useEffect(() => {
     workspacesRef.current = workspaces;
   }, [workspaces]);
 
   useEffect(() => {
     const token = window.localStorage.getItem("collabx_token");
-
     if (!token) {
       router.replace("/login");
       return;
@@ -204,17 +178,13 @@ export default function WorkspacePage() {
         setProfilePhotoUrl(me.user.photoUrl ?? "");
         setWorkspaces(workspaceData.workspaces);
 
-        // Check if there's a workspace ID in the URL
         const params = new URLSearchParams(window.location.search);
-        const workspaceIdFromUrl = params.get("id");
-
+        const wsFromUrl = params.get("id");
         if (
-          workspaceIdFromUrl &&
-          workspaceData.workspaces.some(
-            (w: Workspace) => w._id === workspaceIdFromUrl,
-          )
+          wsFromUrl &&
+          workspaceData.workspaces.some((w: Workspace) => w._id === wsFromUrl)
         ) {
-          setActiveWorkspaceId(workspaceIdFromUrl);
+          setActiveWorkspaceId(wsFromUrl);
         } else {
           setActiveWorkspaceId(workspaceData.workspaces[0]?._id ?? "");
         }
@@ -224,59 +194,42 @@ export default function WorkspacePage() {
         socket.off("message-updated");
         socket.off("message-deleted");
         socket.off("typing-status");
-        socket.on("new-message", (message: Message) => {
-          const isOwnMessage = message.user?._id === userIdRef.current;
-          const isActiveWorkspace =
-            message.workspace === activeWorkspaceIdRef.current;
-          const shouldMarkUnread =
-            !isOwnMessage && (!isActiveWorkspace || document.hidden);
-          const shouldToast =
-            !isOwnMessage && !document.hidden && !isActiveWorkspace;
 
-          if (isActiveWorkspace) {
-            setMessages((current) => {
-              const alreadyExists = current.some(
-                (entry) => entry._id === message._id,
-              );
-              return alreadyExists ? current : [...current, message];
+        socket.on("new-message", (message: Message) => {
+          const isOwn = message.user?._id === userIdRef.current;
+          const isActive = message.workspace === activeWorkspaceIdRef.current;
+          if (isActive) {
+            setMessages((c) => {
+              const exists = c.some((e) => e._id === message._id);
+              return exists ? c : [...c, message];
             });
           }
-
-          if (shouldMarkUnread) {
-            setUnreadCounts((current) => ({
-              ...current,
-              [message.workspace]: (current[message.workspace] ?? 0) + 1,
+          if (!isOwn && (!isActive || document.hidden)) {
+            setUnreadCounts((c) => ({
+              ...c,
+              [message.workspace]: (c[message.workspace] ?? 0) + 1,
             }));
           }
-
-          if (shouldToast) {
-            const workspaceName =
-              workspacesRef.current.find(
-                (workspace) => workspace._id === message.workspace,
-              )?.name ?? "Workspace";
-
+          if (!isOwn && !document.hidden && !isActive) {
+            const wsName =
+              workspacesRef.current.find((w) => w._id === message.workspace)
+                ?.name ?? "Workspace";
             addToast(
               message.workspace,
-              `${message.user?.name ?? "Someone"} in ${workspaceName}`,
+              `${message.user?.name ?? "Someone"} in ${wsName}`,
               message.text,
             );
           }
-
-          if (!isOwnMessage) {
-            maybeShowBrowserNotification(message);
-          }
+          if (!isOwn) maybeShowBrowserNotification(message);
         });
-        socket.on("message-updated", (message: Message) => {
-          if (message.workspace !== activeWorkspaceIdRef.current) {
-            return;
-          }
 
-          setMessages((current) =>
-            current.map((entry) =>
-              entry._id === message._id ? message : entry,
-            ),
+        socket.on("message-updated", (message: Message) => {
+          if (message.workspace !== activeWorkspaceIdRef.current) return;
+          setMessages((c) =>
+            c.map((e) => (e._id === message._id ? message : e)),
           );
         });
+
         socket.on(
           "message-deleted",
           ({
@@ -286,66 +239,46 @@ export default function WorkspacePage() {
             workspaceId: string;
             messageId: string;
           }) => {
-            if (workspaceId !== activeWorkspaceIdRef.current) {
-              return;
-            }
-
-            setMessages((current) =>
-              current.filter((entry) => entry._id !== messageId),
-            );
+            if (workspaceId !== activeWorkspaceIdRef.current) return;
+            setMessages((c) => c.filter((e) => e._id !== messageId));
           },
         );
+
         socket.on(
           "typing-status",
           ({
             workspaceId,
             isTyping,
-            user: typingUser,
+            user: tu,
           }: {
             workspaceId: string;
             isTyping: boolean;
             user: TypingUser;
           }) => {
             if (
-              !typingUser?._id ||
-              typingUser._id === userIdRef.current ||
+              !tu?._id ||
+              tu._id === userIdRef.current ||
               workspaceId !== activeWorkspaceIdRef.current
-            ) {
+            )
               return;
+            const existing = typingTimeoutsRef.current[tu._id];
+            if (existing) {
+              clearTimeout(existing);
+              delete typingTimeoutsRef.current[tu._id];
             }
-
-            const existingTimeout = typingTimeoutsRef.current[typingUser._id];
-            if (existingTimeout) {
-              clearTimeout(existingTimeout);
-              delete typingTimeoutsRef.current[typingUser._id];
-            }
-
             if (!isTyping) {
-              setTypingUsers((current) =>
-                current.filter((entry) => entry._id !== typingUser._id),
-              );
+              setTypingUsers((c) => c.filter((e) => e._id !== tu._id));
               return;
             }
-
-            setTypingUsers((current) => {
-              const exists = current.some(
-                (entry) => entry._id === typingUser._id,
-              );
-
-              if (exists) {
-                return current.map((entry) =>
-                  entry._id === typingUser._id ? typingUser : entry,
-                );
-              }
-
-              return [...current, typingUser];
+            setTypingUsers((c) => {
+              const exists = c.some((e) => e._id === tu._id);
+              return exists
+                ? c.map((e) => (e._id === tu._id ? tu : e))
+                : [...c, tu];
             });
-
-            typingTimeoutsRef.current[typingUser._id] = setTimeout(() => {
-              setTypingUsers((current) =>
-                current.filter((entry) => entry._id !== typingUser._id),
-              );
-              delete typingTimeoutsRef.current[typingUser._id];
+            typingTimeoutsRef.current[tu._id] = setTimeout(() => {
+              setTypingUsers((c) => c.filter((e) => e._id !== tu._id));
+              delete typingTimeoutsRef.current[tu._id];
             }, 2500);
           },
         );
@@ -361,17 +294,11 @@ export default function WorkspacePage() {
     bootstrap();
 
     return () => {
-      Object.values(typingTimeoutsRef.current).forEach((timeoutId) => {
-        clearTimeout(timeoutId);
-      });
+      Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
       typingTimeoutsRef.current = {};
-      Object.values(toastTimeoutsRef.current).forEach((timeoutId) => {
-        clearTimeout(timeoutId);
-      });
+      Object.values(toastTimeoutsRef.current).forEach(clearTimeout);
       toastTimeoutsRef.current = {};
-      if (copyTimeoutRef.current) {
-        clearTimeout(copyTimeoutRef.current);
-      }
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       disconnectSocket();
     };
   }, [router]);
@@ -383,99 +310,75 @@ export default function WorkspacePage() {
       return;
     }
 
+    // ✅ Reset to Chat tab on workspace switch
+    setActiveTab("chat");
     setTypingUsers([]);
-    Object.values(typingTimeoutsRef.current).forEach((timeoutId) => {
-      clearTimeout(timeoutId);
-    });
+    Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
     typingTimeoutsRef.current = {};
 
     async function loadMessages() {
       try {
         const { data } = await api.get(`/messages/${activeWorkspaceId}`);
         setMessages(data.messages);
-
         const socket = connectSocket(
           window.localStorage.getItem("collabx_token") ?? "",
         );
         socket.emit(
           "join-workspace",
           { workspaceId: activeWorkspaceId },
-          (response: { error?: string }) => {
-            if (response?.error) {
-              setError(response.error);
-            }
+          (res: { error?: string }) => {
+            if (res?.error) setError(res.error);
           },
         );
       } catch {
         setError("We could not load workspace messages.");
       }
     }
-
     loadMessages();
   }, [activeWorkspaceId]);
 
   useEffect(() => {
-    if (!workspaces.length) {
-      return;
-    }
-
+    if (!workspaces.length) return;
     const socket = connectSocket(
       window.localStorage.getItem("collabx_token") ?? "",
     );
-
-    workspaces.forEach((workspace) => {
-      socket.emit("join-workspace", { workspaceId: workspace._id });
-    });
+    workspaces.forEach((w) =>
+      socket.emit("join-workspace", { workspaceId: w._id }),
+    );
   }, [workspaces]);
 
   useEffect(() => {
-    if (!activeWorkspaceId || document.hidden) {
-      return;
-    }
-
+    if (!activeWorkspaceId || document.hidden) return;
     clearUnreadCount(activeWorkspaceId);
   }, [activeWorkspaceId]);
 
   useEffect(() => {
     function handleVisibilityChange() {
-      if (!document.hidden && activeWorkspaceIdRef.current) {
+      if (!document.hidden && activeWorkspaceIdRef.current)
         clearUnreadCount(activeWorkspaceIdRef.current);
-      }
     }
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
+    return () =>
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
   }, []);
 
   useEffect(() => {
     if (
       typeof Notification === "undefined" ||
       Notification.permission !== "default"
-    ) {
+    )
       return;
-    }
-
-    Notification.requestPermission().catch(() => {
-      return;
-    });
+    Notification.requestPermission().catch(() => {});
   }, []);
 
   async function createWorkspace() {
-    if (!workspaceName.trim()) {
-      return;
-    }
-
+    if (!workspaceName.trim()) return;
     setError("");
-
     try {
       const { data } = await api.post("/workspaces", {
         name: workspaceName.trim(),
       });
-
-      setWorkspaces((current) => [data.workspace, ...current]);
+      setWorkspaces((c) => [data.workspace, ...c]);
       setActiveWorkspaceId(data.workspace._id);
       setWorkspaceName("");
     } catch {
@@ -484,22 +387,15 @@ export default function WorkspacePage() {
   }
 
   async function joinWorkspace() {
-    if (!workspaceCode.trim()) {
-      return;
-    }
-
+    if (!workspaceCode.trim()) return;
     setError("");
-
     try {
       const { data } = await api.post("/workspaces/join", {
         code: workspaceCode.trim().toUpperCase(),
       });
-
-      setWorkspaces((current) => {
-        const exists = current.some(
-          (workspace) => workspace._id === data.workspace._id,
-        );
-        return exists ? current : [data.workspace, ...current];
+      setWorkspaces((c) => {
+        const exists = c.some((w) => w._id === data.workspace._id);
+        return exists ? c : [data.workspace, ...c];
       });
       setActiveWorkspaceId(data.workspace._id);
       setWorkspaceCode("");
@@ -513,45 +409,41 @@ export default function WorkspacePage() {
   async function updateProfile() {
     const trimmedName = profileName.trim();
     const trimmedPhotoUrl = profilePhotoUrl.trim();
-
     if (!trimmedName) {
       setProfileError("Please enter a name before saving.");
       setProfileSuccess("");
       return;
     }
-
     setIsSavingProfile(true);
     setProfileError("");
     setProfileSuccess("");
-
     try {
       const { data } = await api.put("/auth/profile", {
         name: trimmedName,
         photoUrl: trimmedPhotoUrl,
       });
-
       setUser(data.user);
       setProfileName(data.user.name);
       setProfilePhotoUrl(data.user.photoUrl ?? "");
-      setMessages((current) =>
-        current.map((message) =>
-          message.user?._id === data.user._id
+      setMessages((c) =>
+        c.map((m) =>
+          m.user?._id === data.user._id
             ? {
-                ...message,
+                ...m,
                 user: {
-                  ...message.user,
+                  ...m.user,
                   name: data.user.name,
                   photoUrl: data.user.photoUrl,
                 },
               }
-            : message,
+            : m,
         ),
       );
       window.localStorage.setItem("collabx_user", JSON.stringify(data.user));
       setProfileSuccess("Profile updated.");
-    } catch (error) {
+    } catch (e) {
       setProfileError(
-        getRequestErrorMessage(error, "We could not update your name yet."),
+        getRequestErrorMessage(e, "We could not update your name yet."),
       );
     } finally {
       setIsSavingProfile(false);
@@ -562,30 +454,21 @@ export default function WorkspacePage() {
     event: ChangeEvent<HTMLInputElement>,
   ) {
     const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
+    if (!file) return;
     setIsUploadingPhoto(true);
     setProfileError("");
     setProfileSuccess("");
-
     try {
       const formData = new FormData();
       formData.append("photo", file);
-
       const { data } = await api.post("/auth/profile-photo", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       });
-
       setProfilePhotoUrl(data.photoUrl);
       setProfileSuccess("Photo uploaded. Save Profile to apply it.");
-    } catch (error) {
+    } catch (e) {
       setProfileError(
-        getRequestErrorMessage(error, "We could not upload your photo yet."),
+        getRequestErrorMessage(e, "We could not upload your photo yet."),
       );
     } finally {
       setIsUploadingPhoto(false);
@@ -599,36 +482,28 @@ export default function WorkspacePage() {
       setPasswordSuccess("");
       return;
     }
-
     if (newPassword.length < 6) {
       setPasswordError("New password must be at least 6 characters.");
       setPasswordSuccess("");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setPasswordError("New password and confirm password must match.");
       setPasswordSuccess("");
       return;
     }
-
     setIsSavingPassword(true);
     setPasswordError("");
     setPasswordSuccess("");
-
     try {
-      await api.put("/auth/password", {
-        currentPassword,
-        newPassword,
-      });
-
+      await api.put("/auth/password", { currentPassword, newPassword });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordSuccess("Password updated.");
-    } catch (error) {
+    } catch (e) {
       setPasswordError(
-        getRequestErrorMessage(error, "We could not change your password yet."),
+        getRequestErrorMessage(e, "We could not change your password yet."),
       );
     } finally {
       setIsSavingPassword(false);
@@ -643,49 +518,29 @@ export default function WorkspacePage() {
   }
 
   async function leaveWorkspace(workspaceId: string) {
-    if (!workspaceId) {
-      return;
-    }
-
+    if (!workspaceId) return;
     const workspace = workspaces.find((w) => w._id === workspaceId);
-    if (!workspace) {
-      return;
-    }
-
+    if (!workspace) return;
     const confirmed = window.confirm(
       `Are you sure you want to leave "${workspace.name}"? You will need a new invite code to rejoin.`,
     );
-
-    if (!confirmed) {
-      return;
-    }
-
+    if (!confirmed) return;
     setIsLeavingWorkspace(true);
     setError("");
-
     try {
       await api.post(`/workspaces/${workspaceId}/leave`);
-
-      // Remove workspace from list
-      setWorkspaces((current) => current.filter((w) => w._id !== workspaceId));
-
-      // If this was the active workspace, switch to another one or clear it
+      setWorkspaces((c) => c.filter((w) => w._id !== workspaceId));
       if (activeWorkspaceId === workspaceId) {
-        const remainingWorkspaces = workspaces.filter(
-          (w) => w._id !== workspaceId,
-        );
-        if (remainingWorkspaces.length > 0) {
-          setActiveWorkspaceId(remainingWorkspaces[0]._id);
-        } else {
+        const remaining = workspaces.filter((w) => w._id !== workspaceId);
+        if (remaining.length > 0) setActiveWorkspaceId(remaining[0]._id);
+        else {
           setActiveWorkspaceId("");
           setMessages([]);
           setTypingUsers([]);
         }
       }
-    } catch (error) {
-      setError(
-        getRequestErrorMessage(error, "We could not leave the workspace."),
-      );
+    } catch (e) {
+      setError(getRequestErrorMessage(e, "We could not leave the workspace."));
     } finally {
       setIsLeavingWorkspace(false);
     }
@@ -693,15 +548,12 @@ export default function WorkspacePage() {
 
   async function loadWorkspaceMembers(workspaceId: string) {
     if (!workspaceId) return;
-
     setIsLoadingMembers(true);
     try {
       const { data } = await api.get(`/workspaces/${workspaceId}/members`);
       setWorkspaceMembers(data.members || []);
-    } catch (error) {
-      setError(
-        getRequestErrorMessage(error, "Could not load workspace members."),
-      );
+    } catch (e) {
+      setError(getRequestErrorMessage(e, "Could not load workspace members."));
     } finally {
       setIsLoadingMembers(false);
     }
@@ -709,40 +561,28 @@ export default function WorkspacePage() {
 
   async function deleteWorkspace(workspaceId: string) {
     if (!workspaceId) return;
-
     const workspace = workspaces.find((w) => w._id === workspaceId);
     if (!workspace) return;
-
     const confirmed = window.confirm(
       `⚠️ WARNING: This will permanently delete "${workspace.name}" including all messages and documents. This action cannot be undone. Are you sure?`,
     );
-
     if (!confirmed) return;
-
     setIsDeletingWorkspace(true);
     setError("");
-
     try {
       await api.delete(`/workspaces/${workspaceId}`);
-
-      // Remove workspace from list
-      setWorkspaces((current) => current.filter((w) => w._id !== workspaceId));
-
-      // If this was the active workspace, switch to another one
+      setWorkspaces((c) => c.filter((w) => w._id !== workspaceId));
       if (activeWorkspaceId === workspaceId) {
-        const remainingWorkspaces = workspaces.filter(
-          (w) => w._id !== workspaceId,
-        );
-        if (remainingWorkspaces.length > 0) {
-          setActiveWorkspaceId(remainingWorkspaces[0]._id);
-        } else {
+        const remaining = workspaces.filter((w) => w._id !== workspaceId);
+        if (remaining.length > 0) setActiveWorkspaceId(remaining[0]._id);
+        else {
           setActiveWorkspaceId("");
           setMessages([]);
           setTypingUsers([]);
         }
       }
-    } catch (error) {
-      setError(getRequestErrorMessage(error, "Could not delete workspace."));
+    } catch (e) {
+      setError(getRequestErrorMessage(e, "Could not delete workspace."));
     } finally {
       setIsDeletingWorkspace(false);
     }
@@ -750,32 +590,22 @@ export default function WorkspacePage() {
 
   async function transferOwnership(workspaceId: string, newOwnerId: string) {
     if (!workspaceId || !newOwnerId) return;
-
     const member = workspaceMembers.find((m) => m._id === newOwnerId);
     if (!member) return;
-
     const confirmed = window.confirm(
       `Transfer ownership of this workspace to ${member.name}? They will become the new creator.`,
     );
-
     if (!confirmed) return;
-
     setIsTransferringOwnership(true);
     setError("");
-
     try {
-      await api.post(`/workspaces/${workspaceId}/transfer`, {
-        newOwnerId,
-      });
-
+      await api.post(`/workspaces/${workspaceId}/transfer`, { newOwnerId });
       setShowTransferModal(false);
       setSelectedNewOwner("");
-
-      // Reload workspaces to get updated data
       const { data } = await api.get("/workspaces");
       setWorkspaces(data.workspaces);
-    } catch (error) {
-      setError(getRequestErrorMessage(error, "Could not transfer ownership."));
+    } catch (e) {
+      setError(getRequestErrorMessage(e, "Could not transfer ownership."));
     } finally {
       setIsTransferringOwnership(false);
     }
@@ -783,51 +613,37 @@ export default function WorkspacePage() {
 
   async function removeMember(workspaceId: string, memberId: string) {
     if (!workspaceId || !memberId) return;
-
     const member = workspaceMembers.find((m) => m._id === memberId);
     if (!member) return;
-
     const confirmed = window.confirm(
       `Remove ${member.name} from this workspace?`,
     );
-
     if (!confirmed) return;
-
     setSelectedMemberToRemove(memberId);
     setError("");
-
     try {
       await api.delete(`/workspaces/${workspaceId}/members/${memberId}`);
-
-      // Reload members list
       await loadWorkspaceMembers(workspaceId);
-
-      // Reload workspaces
       const { data } = await api.get("/workspaces");
       setWorkspaces(data.workspaces);
-    } catch (error) {
-      setError(getRequestErrorMessage(error, "Could not remove member."));
+    } catch (e) {
+      setError(getRequestErrorMessage(e, "Could not remove member."));
     } finally {
       setSelectedMemberToRemove(null);
     }
   }
 
   async function copyWorkspaceCode(code: string) {
-    if (!code || typeof navigator === "undefined" || !navigator.clipboard) {
+    if (!code || typeof navigator === "undefined" || !navigator.clipboard)
       return;
-    }
-
     try {
       await navigator.clipboard.writeText(code);
       setCopiedWorkspaceCode(code);
-
-      if (copyTimeoutRef.current) {
-        clearTimeout(copyTimeoutRef.current);
-      }
-
-      copyTimeoutRef.current = setTimeout(() => {
-        setCopiedWorkspaceCode("");
-      }, 1800);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(
+        () => setCopiedWorkspaceCode(""),
+        1800,
+      );
     } catch {
       setError("We could not copy the invite code.");
     }
@@ -835,511 +651,637 @@ export default function WorkspacePage() {
 
   if (loading) {
     return (
-      <main className="shell">
-        <div className="panel workspace-layout">
-          <p className="muted">Loading your workspace...</p>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center animate-pulse">
+            <span className="text-white text-sm">⚡</span>
+          </div>
+          <p className="text-sm text-gray-400 font-medium">
+            Loading your workspace...
+          </p>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="shell">
-      <div className="workspace-layout">
-        <header className="workspace-header panel">
-          <div>
-            <span className="eyebrow">CollabX Workspace</span>
-            <h1 style={{ marginBottom: 8 }}>
-              {user ? `Hi, ${user.name}` : "Workspace"}
-            </h1>
-            <p className="muted" style={{ margin: 0 }}>
-              Create a workspace, share the invite code, and chat live with
-              everyone in the room.
-            </p>
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+      {/* ─── Top Nav Bar ─── */}
+      <header className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 z-20 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSidebarOpen((o) => !o)}
+            className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+            title="Toggle sidebar"
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path
+                fillRule="evenodd"
+                d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5A.75.75 0 012 10z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+              <span className="text-white text-xs font-bold">⚡</span>
+            </div>
+            <span className="font-bold text-gray-900 tracking-tight">
+              CollabX
+            </span>
           </div>
-
-          <div className="row wrap">
-            {activeWorkspace ? (
-              <div className="code-badge">
-                <span>Code: {activeWorkspace.code}</span>
-                <button
-                  type="button"
-                  className="code-copy-button"
-                  onClick={() => copyWorkspaceCode(activeWorkspace.code)}
-                  aria-label={`Copy invite code ${activeWorkspace.code}`}
-                  title="Copy invite code"
-                >
-                  {copiedWorkspaceCode === activeWorkspace.code ? (
-                    <span className="code-copy-status">Copied</span>
-                  ) : (
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      className="code-copy-icon"
-                    >
-                      <path
-                        d="M9 9a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2V9Z"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            ) : null}
-            <button className="button secondary" onClick={handleLogout}>
-              Logout
-            </button>
-          </div>
-        </header>
-
-        <div className="workspace-grid">
-          <aside className="workspace-sidebar">
-            <section className="panel stack">
-              <div
-                className="row wrap"
-                style={{ justifyContent: "space-between" }}
-              >
-                <h3>Profile details</h3>
-                <span className="workspace-chip">Account</span>
-              </div>
-              <div className="profile-summary">
-                {profilePhotoUrl ? (
-                  <img
-                    className="profile-avatar"
-                    src={profilePhotoUrl}
-                    alt={
-                      profileName ? `${profileName} avatar` : "Profile avatar"
-                    }
-                  />
-                ) : (
-                  <div className="profile-avatar profile-avatar-fallback">
-                    {avatarInitials}
-                  </div>
-                )}
-                <div className="stack" style={{ gap: 6 }}>
-                  <strong>{user?.name ?? "CollabX User"}</strong>
-                  <span className="muted">{user?.email ?? ""}</span>
-                </div>
-              </div>
-              <input
-                className="input"
-                placeholder="Your display name"
-                value={profileName}
-                onChange={(event) => setProfileName(event.target.value)}
-              />
-              <input
-                className="input"
-                placeholder="Photo URL"
-                value={profilePhotoUrl}
-                onChange={(event) => setProfilePhotoUrl(event.target.value)}
-              />
-              <label
-                className="button secondary"
-                style={{ textAlign: "center" }}
-              >
-                {isUploadingPhoto ? "Uploading..." : "Upload Photo"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfilePhotoUpload}
-                  disabled={isUploadingPhoto}
-                  style={{ display: "none" }}
-                />
-              </label>
-              <input
-                className="input"
-                value={user?.email ?? ""}
-                disabled
-                readOnly
-              />
+          {activeWorkspace && (
+            <>
+              <span className="text-gray-300">/</span>
+              <span className="text-sm font-semibold text-gray-700">
+                {activeWorkspace.name}
+              </span>
               <button
-                className="button secondary"
-                onClick={updateProfile}
-                disabled={isSavingProfile}
+                onClick={() => copyWorkspaceCode(activeWorkspace.code)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                title="Copy invite code"
               >
-                {isSavingProfile ? "Saving..." : "Save Profile"}
-              </button>
-              {profileError ? <p className="error">{profileError}</p> : null}
-              {profileSuccess ? (
-                <p className="success">{profileSuccess}</p>
-              ) : null}
-            </section>
-
-            <section className="panel stack">
-              <div
-                className="row wrap"
-                style={{ justifyContent: "space-between" }}
-              >
-                <h3>Change password</h3>
-                <span className="workspace-chip">Security</span>
-              </div>
-              <input
-                className="input"
-                type="password"
-                placeholder="Current password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
-              <input
-                className="input"
-                type="password"
-                placeholder="New password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-              <input
-                className="input"
-                type="password"
-                placeholder="Confirm new password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-              />
-              <button
-                className="button secondary"
-                onClick={updatePassword}
-                disabled={isSavingPassword}
-              >
-                {isSavingPassword ? "Saving..." : "Update Password"}
-              </button>
-              {passwordError ? <p className="error">{passwordError}</p> : null}
-              {passwordSuccess ? (
-                <p className="success">{passwordSuccess}</p>
-              ) : null}
-            </section>
-
-            <section className="panel stack">
-              <h3>Start a workspace</h3>
-              <input
-                className="input"
-                placeholder="Sprint planning"
-                value={workspaceName}
-                onChange={(event) => setWorkspaceName(event.target.value)}
-              />
-              <button className="button" onClick={createWorkspace}>
-                Create Workspace
-              </button>
-            </section>
-
-            <section className="panel stack">
-              <h3>Join with a code</h3>
-              <input
-                className="input"
-                placeholder="AB12CD"
-                value={workspaceCode}
-                onChange={(event) => setWorkspaceCode(event.target.value)}
-              />
-              <button className="button warn" onClick={joinWorkspace}>
-                Join Workspace
-              </button>
-            </section>
-
-            <section className="panel stack">
-              <div
-                className="row wrap"
-                style={{ justifyContent: "space-between" }}
-              >
-                <h3>Your workspaces</h3>
-                <span className="workspace-chip">
-                  {workspaces.length} total
+                <span className="text-xs font-mono font-semibold text-emerald-700">
+                  {activeWorkspace.code}
                 </span>
-              </div>
-              <div className="workspace-list">
-                {workspaces.map((workspace) => {
-                  const isWorkspaceCreator = workspace.createdBy === user?._id;
+                {copiedWorkspaceCode === activeWorkspace.code ? (
+                  <span className="text-xs text-emerald-600">✓</span>
+                ) : (
+                  <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="w-3 h-3 text-emerald-600"
+                  >
+                    <path
+                      d="M5.5 5.5A1.5 1.5 0 017 4h5A1.5 1.5 0 0113.5 5.5v5A1.5 1.5 0 0112 12H7a1.5 1.5 0 01-1.5-1.5v-5z"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path
+                      d="M2.5 9.5v-4A1.5 1.5 0 014 4"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                )}
+              </button>
+            </>
+          )}
+        </div>
 
-                  return (
-                    <div key={workspace._id} style={{ marginBottom: 12 }}>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-100">
+            {profilePhotoUrl ? (
+              <img
+                src={profilePhotoUrl}
+                alt="avatar"
+                className="w-6 h-6 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">
+                {avatarInitials}
+              </div>
+            )}
+            <span className="text-sm font-medium text-gray-700">
+              {user?.name}
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 border border-gray-200 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* ─── Left Sidebar ─── */}
+        {sidebarOpen && (
+          <aside className="w-72 bg-white border-r border-gray-100 flex flex-col overflow-hidden shrink-0">
+            <div className="flex border-b border-gray-100 shrink-0">
+              <button
+                onClick={() => setSidebarTab("workspaces")}
+                className={`flex-1 py-3 text-sm font-semibold transition-colors ${sidebarTab === "workspaces" ? "text-emerald-600 border-b-2 border-emerald-500" : "text-gray-400 hover:text-gray-700"}`}
+              >
+                Workspaces
+              </button>
+              <button
+                onClick={() => setSidebarTab("profile")}
+                className={`flex-1 py-3 text-sm font-semibold transition-colors ${sidebarTab === "profile" ? "text-emerald-600 border-b-2 border-emerald-500" : "text-gray-400 hover:text-gray-700"}`}
+              >
+                Profile
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {sidebarTab === "workspaces" && (
+                <div className="p-3 space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
+                      Create
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-gray-400"
+                        placeholder="Workspace name..."
+                        value={workspaceName}
+                        onChange={(e) => setWorkspaceName(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && createWorkspace()
+                        }
+                      />
                       <button
-                        className={`workspace-item ${
-                          workspace._id === activeWorkspaceId ? "active" : ""
-                        }`}
-                        onClick={() => setActiveWorkspaceId(workspace._id)}
+                        onClick={createWorkspace}
+                        className="px-3 py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors"
                       >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
+                      Join with code
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        className="flex-1 px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-gray-400 font-mono uppercase"
+                        placeholder="AB12CD"
+                        value={workspaceCode}
+                        onChange={(e) => setWorkspaceCode(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && joinWorkspace()}
+                      />
+                      <button
+                        onClick={joinWorkspace}
+                        className="px-3 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-100 transition-colors"
+                      >
+                        Join
+                      </button>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-xs">
+                      {error}
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between px-1">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Your workspaces
+                      </p>
+                      <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                        {workspaces.length}
+                      </span>
+                    </div>
+
+                    {workspaces.length === 0 && (
+                      <p className="text-xs text-gray-400 px-1 py-3 text-center">
+                        No workspaces yet. Create one above.
+                      </p>
+                    )}
+
+                    {workspaces.map((workspace) => {
+                      const isWsCreator = workspace.createdBy === user?._id;
+                      const isActive = workspace._id === activeWorkspaceId;
+                      return (
                         <div
-                          className="row wrap"
-                          style={{ justifyContent: "space-between" }}
+                          key={workspace._id}
+                          className={`group rounded-xl border transition-all duration-150 ${isActive ? "bg-emerald-50 border-emerald-200" : "bg-white border-gray-100 hover:border-gray-200 hover:bg-gray-50"}`}
                         >
-                          <div>
-                            {workspace.name}
-                            {isWorkspaceCreator && (
-                              <span
-                                style={{
-                                  marginLeft: 8,
-                                  fontSize: 11,
-                                  opacity: 0.7,
+                          <button
+                            className="w-full px-3 py-2.5 text-left"
+                            onClick={() => setActiveWorkspaceId(workspace._id)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div
+                                  className={`w-2 h-2 rounded-full shrink-0 ${isActive ? "bg-emerald-500" : "bg-gray-300"}`}
+                                />
+                                <span
+                                  className={`text-sm font-semibold truncate ${isActive ? "text-emerald-700" : "text-gray-700"}`}
+                                >
+                                  {workspace.name}
+                                </span>
+                                {isWsCreator && (
+                                  <span className="text-xs shrink-0">👑</span>
+                                )}
+                              </div>
+                              {unreadCounts[workspace._id] ? (
+                                <span className="ml-2 min-w-[20px] h-5 flex items-center justify-center rounded-full bg-emerald-500 text-white text-xs font-bold px-1.5 shrink-0">
+                                  {unreadCounts[workspace._id]}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5 pl-4 font-mono">
+                              {workspace.code}
+                            </p>
+                          </button>
+
+                          <div className="flex gap-1.5 px-3 pb-2.5">
+                            <button
+                              className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors font-medium"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push("/dashboard");
+                              }}
+                            >
+                              Dashboard
+                            </button>
+                            {isWsCreator ? (
+                              <>
+                                <button
+                                  className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors font-medium"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    loadWorkspaceMembers(workspace._id);
+                                    setShowMemberModal(true);
+                                  }}
+                                >
+                                  Members
+                                </button>
+                                <button
+                                  className="text-xs px-2 py-1 rounded-md bg-red-50 text-red-500 hover:bg-red-100 transition-colors font-medium"
+                                  disabled={isDeletingWorkspace}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteWorkspace(workspace._id);
+                                  }}
+                                >
+                                  {isDeletingWorkspace ? "..." : "Delete"}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                className="text-xs px-2 py-1 rounded-md bg-orange-50 text-orange-500 hover:bg-orange-100 transition-colors font-medium"
+                                disabled={isLeavingWorkspace}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  leaveWorkspace(workspace._id);
                                 }}
                               >
-                                👑 Creator
-                              </span>
+                                {isLeavingWorkspace ? "..." : "Leave"}
+                              </button>
                             )}
                           </div>
-                          {unreadCounts[workspace._id] ? (
-                            <span className="unread-badge">
-                              {unreadCounts[workspace._id]}
-                            </span>
-                          ) : null}
                         </div>
-                        <small className="muted">
-                          Invite code: {workspace.code}
-                        </small>
-                      </button>
-                      <div
-                        className="row wrap"
-                        style={{ gap: 8, marginTop: 4, flexWrap: "wrap" }}
-                      >
-                        <button
-                          className="button secondary"
-                          style={{ fontSize: 12, padding: "4px 8px" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push("/dashboard");
-                          }}
-                        >
-                          Dashboard
-                        </button>
-                        {isWorkspaceCreator ? (
-                          <>
-                            <button
-                              className="button secondary"
-                              style={{ fontSize: 12, padding: "4px 8px" }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                loadWorkspaceMembers(workspace._id);
-                                setShowMemberModal(true);
-                              }}
-                            >
-                              Manage Members
-                            </button>
-                            <button
-                              className="button warn"
-                              style={{ fontSize: 12, padding: "4px 8px" }}
-                              disabled={isDeletingWorkspace}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteWorkspace(workspace._id);
-                              }}
-                            >
-                              {isDeletingWorkspace ? "Deleting..." : "Delete"}
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            className="button warn"
-                            style={{ fontSize: 12, padding: "4px 8px" }}
-                            disabled={isLeavingWorkspace}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              leaveWorkspace(workspace._id);
-                            }}
-                          >
-                            {isLeavingWorkspace ? "Leaving..." : "Leave"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {workspaces.length === 0 ? (
-                  <p className="muted">
-                    No workspaces yet. Create one to start chatting.
-                  </p>
-                ) : null}
-              </div>
-              {error ? <p className="error">{error}</p> : null}
-            </section>
-          </aside>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-          <section className="workspace-main">
-            <ChatBox
-              activeWorkspace={activeWorkspace}
-              messages={messages}
-              currentUserId={user?._id ?? ""}
-              typingUsers={typingUsers}
-            />
-            <Editor activeWorkspace={activeWorkspace} />
-          </section>
-        </div>
+              {sidebarTab === "profile" && (
+                <div className="p-3 space-y-4">
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    {profilePhotoUrl ? (
+                      <img
+                        src={profilePhotoUrl}
+                        alt="avatar"
+                        className="w-12 h-12 rounded-full object-cover border-2 border-emerald-200"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-lg">
+                        {avatarInitials}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {user?.name ?? "CollabX User"}
+                      </p>
+                      <p className="text-xs text-gray-400">{user?.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
+                      Display info
+                    </p>
+                    <input
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-gray-400"
+                      placeholder="Your display name"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                    />
+                    <input
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-gray-400"
+                      placeholder="Photo URL"
+                      value={profilePhotoUrl}
+                      onChange={(e) => setProfilePhotoUrl(e.target.value)}
+                    />
+                    <input
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                      value={user?.email ?? ""}
+                      disabled
+                      readOnly
+                    />
+                    <label className="flex items-center justify-center w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:bg-gray-50 hover:border-emerald-300 transition-colors cursor-pointer">
+                      {isUploadingPhoto ? "Uploading..." : "📷 Upload Photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePhotoUpload}
+                        disabled={isUploadingPhoto}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      onClick={updateProfile}
+                      disabled={isSavingProfile}
+                      className="w-full py-2 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 disabled:opacity-60 transition-colors"
+                    >
+                      {isSavingProfile ? "Saving..." : "Save Profile"}
+                    </button>
+                    {profileError && (
+                      <p className="text-xs text-red-500 px-1">
+                        {profileError}
+                      </p>
+                    )}
+                    {profileSuccess && (
+                      <p className="text-xs text-emerald-600 px-1">
+                        {profileSuccess}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 pt-2 border-t border-gray-100">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-1">
+                      Change password
+                    </p>
+                    {[
+                      {
+                        placeholder: "Current password",
+                        value: currentPassword,
+                        onChange: setCurrentPassword,
+                      },
+                      {
+                        placeholder: "New password",
+                        value: newPassword,
+                        onChange: setNewPassword,
+                      },
+                      {
+                        placeholder: "Confirm new password",
+                        value: confirmPassword,
+                        onChange: setConfirmPassword,
+                      },
+                    ].map((field) => (
+                      <input
+                        key={field.placeholder}
+                        type="password"
+                        className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-gray-400"
+                        placeholder={field.placeholder}
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
+                    ))}
+                    <button
+                      onClick={updatePassword}
+                      disabled={isSavingPassword}
+                      className="w-full py-2 rounded-lg border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-100 disabled:opacity-60 transition-colors"
+                    >
+                      {isSavingPassword ? "Saving..." : "Update Password"}
+                    </button>
+                    {passwordError && (
+                      <p className="text-xs text-red-500 px-1">
+                        {passwordError}
+                      </p>
+                    )}
+                    {passwordSuccess && (
+                      <p className="text-xs text-emerald-600 px-1">
+                        {passwordSuccess}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+
+        {/* ─── Main Area ─── */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-white">
+          {activeWorkspace ? (
+            <>
+              {/* ✅ Header with Chat / Editor pill switcher */}
+              <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100 shrink-0 bg-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <span className="text-emerald-600 text-sm">
+                      {activeTab === "chat" ? "💬" : "📝"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">
+                      {activeWorkspace.name}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {isCreator ? "You are the workspace creator" : "Member"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* ✅ Pill toggle — same style as sidebar tabs */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setActiveTab("chat")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        activeTab === "chat"
+                          ? "bg-white text-emerald-600 shadow-sm border border-gray-200"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      💬 Chat
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("editor")}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                        activeTab === "editor"
+                          ? "bg-white text-emerald-600 shadow-sm border border-gray-200"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      📝 Editor
+                    </button>
+                  </div>
+
+                  {isCreator && (
+                    <button
+                      onClick={() => {
+                        loadWorkspaceMembers(activeWorkspace._id);
+                        setShowMemberModal(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-gray-200 transition-colors"
+                    >
+                      <svg
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="w-4 h-4"
+                      >
+                        <path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z" />
+                      </svg>
+                      Members
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ✅ display:none keeps Editor socket alive when on Chat tab */}
+              <div className="flex-1 overflow-hidden flex flex-col">
+                <div
+                  style={{
+                    display: activeTab === "chat" ? "contents" : "none",
+                  }}
+                >
+                  <ChatBox
+                    activeWorkspace={activeWorkspace}
+                    messages={messages}
+                    currentUserId={user?._id ?? ""}
+                    typingUsers={typingUsers}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: activeTab === "editor" ? "contents" : "none",
+                  }}
+                >
+                  <Editor activeWorkspace={activeWorkspace} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mb-4">
+                <span className="text-3xl">💬</span>
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                No workspace selected
+              </h2>
+              <p className="text-sm text-gray-400 max-w-xs">
+                Create a new workspace or join one with an invite code from the
+                sidebar.
+              </p>
+            </div>
+          )}
+        </main>
       </div>
-      {toasts.length ? (
-        <div className="toast-stack">
+
+      {/* ─── Toast Notifications ─── */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
           {toasts.map((toast) => (
             <button
               key={toast.id}
-              className="toast-card"
               type="button"
               onClick={() => {
                 setActiveWorkspaceId(toast.workspaceId);
                 clearUnreadCount(toast.workspaceId);
                 removeToast(toast.id);
               }}
+              className="flex flex-col gap-0.5 px-4 py-3 rounded-xl bg-white border border-gray-200 shadow-lg shadow-gray-200/80 text-left hover:border-emerald-200 hover:shadow-emerald-100/60 transition-all max-w-xs"
             >
-              <strong>{toast.title}</strong>
-              <span>{toast.body}</span>
+              <span className="text-sm font-semibold text-gray-900">
+                {toast.title}
+              </span>
+              <span className="text-xs text-gray-500 truncate">
+                {toast.body}
+              </span>
             </button>
           ))}
         </div>
-      ) : null}
+      )}
 
-      {/* Member Management Modal */}
+      {/* ─── Member Management Modal ─── */}
       {showMemberModal && activeWorkspace && (
         <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => setShowMemberModal(false)}
         >
           <div
-            className="panel"
-            style={{
-              maxWidth: 500,
-              width: "90%",
-              maxHeight: "80vh",
-              overflow: "auto",
-            }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>
-                Manage Members - {activeWorkspace.name}
-              </h3>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  Manage Members
+                </h3>
+                <p className="text-xs text-gray-400">{activeWorkspace.name}</p>
+              </div>
               <button
-                className="button secondary"
-                style={{ padding: "4px 12px" }}
                 onClick={() => setShowMemberModal(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            {isLoadingMembers ? (
-              <p className="muted">Loading members...</p>
-            ) : (
-              <>
-                <div style={{ marginBottom: 16 }}>
-                  <button
-                    className="button"
-                    style={{ width: "100%" }}
-                    onClick={() => {
-                      setShowMemberModal(false);
-                      setShowTransferModal(true);
-                    }}
-                  >
-                    Transfer Ownership
-                  </button>
-                </div>
+            <div className="p-4 border-b border-gray-100">
+              <button
+                className="w-full py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 transition-colors"
+                onClick={() => {
+                  setShowMemberModal(false);
+                  setShowTransferModal(true);
+                }}
+              >
+                Transfer Ownership
+              </button>
+            </div>
 
-                <h4 style={{ marginBottom: 12 }}>
-                  Members ({workspaceMembers.length})
-                </h4>
-                <div className="stack" style={{ gap: 8 }}>
+            <div className="flex-1 overflow-y-auto p-4">
+              {isLoadingMembers ? (
+                <p className="text-sm text-gray-400 text-center py-6">
+                  Loading members...
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+                    Members ({workspaceMembers.length})
+                  </p>
                   {workspaceMembers.map((member: any) => {
                     const isMemberCreator =
                       member._id === activeWorkspace.createdBy;
                     const isCurrentUser = member._id === user?._id;
-
                     return (
                       <div
                         key={member._id}
-                        className="row wrap"
-                        style={{
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "8px 12px",
-                          backgroundColor: "var(--color-surface)",
-                          borderRadius: 8,
-                        }}
+                        className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100"
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                          }}
-                        >
+                        <div className="flex items-center gap-3">
                           {member.photoUrl ? (
                             <img
                               src={member.photoUrl}
                               alt={member.name}
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: "50%",
-                                objectFit: "cover",
-                              }}
+                              className="w-9 h-9 rounded-full object-cover"
                             />
                           ) : (
-                            <div
-                              style={{
-                                width: 32,
-                                height: 32,
-                                borderRadius: "50%",
-                                backgroundColor: "var(--color-primary)",
-                                color: "white",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                fontSize: 14,
-                                fontWeight: "bold",
-                              }}
-                            >
+                            <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold">
                               {member.name.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <div>
-                            <div style={{ fontWeight: 500 }}>
+                            <p className="text-sm font-semibold text-gray-900">
                               {member.name}
                               {isMemberCreator && (
-                                <span style={{ marginLeft: 8, fontSize: 11 }}>
-                                  👑 Creator
-                                </span>
+                                <span className="ml-1.5 text-xs">👑</span>
                               )}
                               {isCurrentUser && (
-                                <span
-                                  style={{
-                                    marginLeft: 8,
-                                    fontSize: 11,
-                                    opacity: 0.7,
-                                  }}
-                                >
+                                <span className="ml-1.5 text-xs text-gray-400">
                                   (You)
                                 </span>
                               )}
-                            </div>
-                            <small className="muted">{member.email}</small>
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {member.email}
+                            </p>
                           </div>
                         </div>
                         {!isMemberCreator && !isCurrentUser && (
                           <button
-                            className="button warn"
-                            style={{ fontSize: 12, padding: "4px 8px" }}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-medium transition-colors"
                             disabled={selectedMemberToRemove === member._id}
                             onClick={() =>
                               removeMember(activeWorkspace._id, member._id)
@@ -1354,127 +1296,91 @@ export default function WorkspacePage() {
                     );
                   })}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Transfer Ownership Modal */}
+      {/* ─── Transfer Ownership Modal ─── */}
       {showTransferModal && activeWorkspace && (
         <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => setShowTransferModal(false)}
         >
           <div
-            className="panel"
-            style={{
-              maxWidth: 500,
-              width: "90%",
-            }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-2xl w-full max-w-md overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <h3 style={{ margin: 0 }}>Transfer Ownership</h3>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">
+                Transfer Ownership
+              </h3>
               <button
-                className="button secondary"
-                style={{ padding: "4px 12px" }}
                 onClick={() => setShowTransferModal(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            <p className="muted" style={{ marginBottom: 16 }}>
-              Select a member to transfer ownership of{" "}
-              <strong>{activeWorkspace.name}</strong>. You will remain as a
-              regular member.
-            </p>
-
-            <div className="stack" style={{ gap: 8, marginBottom: 16 }}>
-              {workspaceMembers
-                .filter((member: any) => member._id !== user?._id)
-                .map((member: any) => (
-                  <button
-                    key={member._id}
-                    className={`workspace-item ${selectedNewOwner === member._id ? "active" : ""}`}
-                    onClick={() => setSelectedNewOwner(member._id)}
-                    style={{ textAlign: "left" }}
-                  >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 12 }}
+            <div className="p-4">
+              <p className="text-sm text-gray-500 mb-4">
+                Select a member to become the new owner of{" "}
+                <strong className="text-gray-900">
+                  {activeWorkspace.name}
+                </strong>
+                . You will remain as a regular member.
+              </p>
+              <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
+                {workspaceMembers
+                  .filter((m: any) => m._id !== user?._id)
+                  .map((member: any) => (
+                    <button
+                      key={member._id}
+                      onClick={() => setSelectedNewOwner(member._id)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${selectedNewOwner === member._id ? "bg-emerald-50 border-emerald-300" : "bg-gray-50 border-gray-100 hover:border-gray-200"}`}
                     >
                       {member.photoUrl ? (
                         <img
                           src={member.photoUrl}
                           alt={member.name}
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                          }}
+                          className="w-9 h-9 rounded-full object-cover"
                         />
                       ) : (
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            backgroundColor: "var(--color-primary)",
-                            color: "white",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 14,
-                            fontWeight: "bold",
-                          }}
-                        >
+                        <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm font-bold">
                           {member.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div>
-                        <div style={{ fontWeight: 500 }}>{member.name}</div>
-                        <small className="muted">{member.email}</small>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {member.name}
+                        </p>
+                        <p className="text-xs text-gray-400">{member.email}</p>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                      {selectedNewOwner === member._id && (
+                        <span className="ml-auto text-emerald-500 font-bold">
+                          ✓
+                        </span>
+                      )}
+                    </button>
+                  ))}
+              </div>
+              <button
+                className="w-full py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                disabled={!selectedNewOwner || isTransferringOwnership}
+                onClick={() =>
+                  transferOwnership(activeWorkspace._id, selectedNewOwner)
+                }
+              >
+                {isTransferringOwnership
+                  ? "Transferring..."
+                  : "Transfer Ownership"}
+              </button>
             </div>
-
-            <button
-              className="button warn"
-              style={{ width: "100%" }}
-              disabled={!selectedNewOwner || isTransferringOwnership}
-              onClick={() =>
-                transferOwnership(activeWorkspace._id, selectedNewOwner)
-              }
-            >
-              {isTransferringOwnership
-                ? "Transferring..."
-                : "Transfer Ownership"}
-            </button>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

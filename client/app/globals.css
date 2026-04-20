@@ -1,15 +1,17 @@
+@import "tailwindcss";
+
 :root {
-  --bg: #08111f;
-  --bg-soft: #13243d;
-  --panel: rgba(10, 20, 37, 0.82);
-  --panel-strong: rgba(16, 29, 52, 0.94);
-  --line: rgba(154, 175, 210, 0.18);
-  --text: #f4f7fb;
-  --muted: #a5b4ce;
-  --accent: #61d8c3;
-  --accent-strong: #ffb84d;
-  --danger: #ff7676;
-  --shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  --bg: #ffffff;
+  --bg-soft: #f9fafb;
+  --panel: rgba(255, 255, 255, 0.95);
+  --panel-strong: rgba(255, 255, 255, 0.98);
+  --line: rgba(0, 0, 0, 0.08);
+  --text: #111827;
+  --muted: #6b7280;
+  --accent: #10b981;
+  --accent-strong: #059669;
+  --danger: #ef4444;
+  --shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
   --radius: 24px;
   --radius-sm: 16px;
   --font-sans: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
@@ -28,9 +30,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(97, 216, 195, 0.18), transparent 24%),
-    radial-gradient(circle at top right, rgba(255, 184, 77, 0.14), transparent 28%),
-    linear-gradient(160deg, #08111f 0%, #0a1b2f 48%, #06101d 100%);
+    radial-gradient(circle at top left, rgba(16, 185, 129, 0.08), transparent 24%),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.06), transparent 28%),
+    linear-gradient(160deg, #ffffff 0%, #f9fafb 48%, #ffffff 100%);
   color: var(--text);
   font-family: var(--font-sans);
 }
@@ -168,18 +170,18 @@ button {
   border: none;
   border-radius: 16px;
   padding: 14px 18px;
-  background: linear-gradient(135deg, var(--accent), #79f1df);
-  color: #04121a;
+  background: linear-gradient(135deg, var(--accent), #059669);
+  color: #ffffff;
   font-weight: 700;
 }
 
 .button.secondary {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.05);
   color: var(--text);
 }
 
 .button.warn {
-  background: linear-gradient(135deg, var(--accent-strong), #ffd280);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
 }
 
 .button:disabled {
@@ -217,7 +219,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(97, 216, 195, 0.28), rgba(255, 184, 77, 0.2));
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(5, 150, 105, 0.2));
   color: var(--text);
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -265,8 +267,8 @@ button {
 }
 
 .workspace-item.active {
-  border-color: rgba(97, 216, 195, 0.8);
-  background: rgba(97, 216, 195, 0.14);
+  border-color: rgba(16, 185, 129, 0.8);
+  background: rgba(16, 185, 129, 0.14);
 }
 
 .unread-badge {
@@ -277,8 +279,8 @@ button {
   height: 28px;
   padding: 0 8px;
   border-radius: 999px;
-  background: rgba(255, 184, 77, 0.18);
-  color: #ffd38b;
+  background: rgba(245, 158, 11, 0.18);
+  color: #d97706;
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -329,7 +331,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(97, 216, 195, 0.28), rgba(255, 184, 77, 0.2));
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.28), rgba(5, 150, 105, 0.2));
   color: var(--text);
   font-size: 0.8rem;
   font-weight: 700;
@@ -356,17 +358,17 @@ button {
   border: none;
   border-radius: 999px;
   padding: 8px 12px;
-  background: rgba(97, 216, 195, 0.16);
+  background: rgba(16, 185, 129, 0.16);
   color: var(--text);
 }
 
 .message-action.secondary {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .message-action.danger {
-  background: rgba(255, 118, 118, 0.18);
-  color: #ffd2d2;
+  background: rgba(239, 68, 68, 0.18);
+  color: #dc2626;
 }
 
 .message-edit-input {
@@ -446,8 +448,8 @@ button {
   gap: 8px;
   border-radius: 999px;
   padding: 8px 14px;
-  background: rgba(255, 184, 77, 0.12);
-  color: #ffd38b;
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
   font-family: var(--font-mono);
 }
 

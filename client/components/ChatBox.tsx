@@ -35,36 +35,40 @@ export default function ChatBox({
   typingUsers,
 }: ChatBoxProps) {
   const messagesRef = useRef<HTMLDivElement | null>(null);
+
   const [editingMessageId, setEditingMessageId] = useState("");
   const [editingText, setEditingText] = useState("");
   const [error, setError] = useState("");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [deletingMessageId, setDeletingMessageId] = useState("");
+
+  // ✅ typing indicator
   const typingText = useMemo(() => {
-    if (typingUsers.length === 0) {
-      return "";
-    }
-
-    if (typingUsers.length === 1) {
-      return `${typingUsers[0].name} is typing...`;
-    }
-
-    if (typingUsers.length === 2) {
+    if (typingUsers.length === 0) return "";
+    if (typingUsers.length === 1) return `${typingUsers[0].name} is typing...`;
+    if (typingUsers.length === 2)
       return `${typingUsers[0].name} and ${typingUsers[1].name} are typing...`;
-    }
-
     return `${typingUsers[0].name} and ${typingUsers.length - 1} others are typing...`;
   }, [typingUsers]);
 
+  // ✅ Smart auto-scroll (WhatsApp-like)
   useEffect(() => {
     const container = messagesRef.current;
-    if (!container) {
-      return;
-    }
+    if (!container) return;
 
-    container.scrollTop = container.scrollHeight;
+    const isNearBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight <
+      120;
+
+    if (isNearBottom) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   }, [messages]);
 
+  // ✅ sync editing text
   useEffect(() => {
     if (!editingMessageId) {
       setEditingText("");
@@ -72,14 +76,14 @@ export default function ChatBox({
       return;
     }
 
-    const message = messages.find((entry) => entry._id === editingMessageId);
-    if (!message) {
+    const msg = messages.find((m) => m._id === editingMessageId);
+    if (!msg) {
       setEditingMessageId("");
       setEditingText("");
       return;
     }
 
-    setEditingText(message.text);
+    setEditingText(msg.text);
   }, [editingMessageId, messages]);
 
   function startEditing(message: Message) {
@@ -95,15 +99,17 @@ export default function ChatBox({
   }
 
   function saveEdit() {
-    if (!activeWorkspace || !editingMessageId || !editingText.trim()) {
+    if (!activeWorkspace || !editingText.trim()) {
       setError("Message text cannot be empty.");
       return;
     }
 
     setIsSavingEdit(true);
-    setError("");
 
-    const socket = connectSocket(window.localStorage.getItem("collabx_token") ?? "");
+    const socket = connectSocket(
+      window.localStorage.getItem("collabx_token") ?? "",
+    );
+
     socket.emit(
       "update-message",
       {
@@ -111,157 +117,155 @@ export default function ChatBox({
         messageId: editingMessageId,
         text: editingText.trim(),
       },
-      (response: { error?: string; ok?: boolean }) => {
+      (res: { error?: string; ok?: boolean }) => {
         setIsSavingEdit(false);
-
-        if (response.error || !response.ok) {
-          setError(response.error ?? "Message could not be updated.");
+        if (res.error || !res.ok) {
+          setError(res.error ?? "Update failed.");
           return;
         }
-
         cancelEditing();
-      }
+      },
     );
   }
 
   function deleteMessage(messageId: string) {
-    if (!activeWorkspace || !window.confirm("Delete this message?")) {
-      return;
-    }
+    if (!activeWorkspace || !confirm("Delete this message?")) return;
 
     setDeletingMessageId(messageId);
-    setError("");
 
-    const socket = connectSocket(window.localStorage.getItem("collabx_token") ?? "");
+    const socket = connectSocket(
+      window.localStorage.getItem("collabx_token") ?? "",
+    );
+
     socket.emit(
       "delete-message",
       {
         workspaceId: activeWorkspace._id,
         messageId,
       },
-      (response: { error?: string; ok?: boolean }) => {
+      (res: { error?: string; ok?: boolean }) => {
         setDeletingMessageId("");
-
-        if (response.error || !response.ok) {
-          setError(response.error ?? "Message could not be deleted.");
+        if (res.error || !res.ok) {
+          setError(res.error ?? "Delete failed.");
         }
-      }
+      },
     );
   }
 
   return (
-    <section className="panel chat-shell">
-      <div className="row wrap" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h2 style={{ marginBottom: 6 }}>
-            {activeWorkspace ? activeWorkspace.name : "Pick a workspace"}
-          </h2>
-          <p className="muted" style={{ margin: 0 }}>
-            {activeWorkspace
-              ? "Messages sync live with everyone in this room."
-              : "Create or select a workspace to start chatting."}
-          </p>
-        </div>
+    <section className="flex flex-col h-full min-h-0 bg-white rounded-xl ">
+      {/* HEADER */}
+      <div className="p-4 shrink-0">
+        <h2 className="font-semibold text-lg">
+          {activeWorkspace ? activeWorkspace.name : "Pick a workspace"}
+        </h2>
+        <p className="text-sm text-gray-500">
+          {activeWorkspace
+            ? "Messages sync live in this room."
+            : "Select a workspace to start chatting."}
+        </p>
       </div>
 
-      <div className="messages" ref={messagesRef}>
+      {/* MESSAGES */}
+      <div
+        ref={messagesRef}
+        className="flex-1 overflow-y-auto px-4 py-3 space-y-4 pb-28"
+      >
         {messages.length === 0 ? (
-          <div className="message">
-            <div className="message-meta">
-              <span>CollabX Bot</span>
-              <span>Now</span>
-            </div>
-            <div>
-              {activeWorkspace
-                ? "No messages yet. Send the first update to bring the room to life."
-                : "Your live chat will appear here once you join a workspace."}
-            </div>
+          <div className="text-sm text-gray-500">
+            {activeWorkspace ? "No messages yet." : "Chat will appear here."}
           </div>
         ) : (
           messages.map((message) => (
-            <article className="message" key={message._id}>
-              <div className="message-row">
-                {message.user?.photoUrl ? (
-                  <img
-                    className="message-avatar"
-                    src={message.user.photoUrl}
-                    alt={`${message.user.name ?? "User"} avatar`}
-                  />
+            <div key={message._id} className="flex gap-3">
+              {/* Avatar */}
+              {message.user?.photoUrl ? (
+                <img
+                  src={message.user.photoUrl}
+                  className="w-9 h-9 rounded-full"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">
+                  {getInitials(message.user?.name)}
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="flex-1">
+                <div className="text-xs text-gray-500 flex justify-between">
+                  <span>
+                    {message.user?.name || "Anonymous"}
+                    {message.updatedAt !== message.createdAt && " (edited)"}
+                  </span>
+                  <span>{formatTime(message.createdAt)}</span>
+                </div>
+
+                {editingMessageId === message._id ? (
+                  <div className="mt-2">
+                    <textarea
+                      className="w-full border rounded-md p-2 text-sm"
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                    />
+
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={saveEdit}
+                        className="px-3 py-1 text-xs bg-green-500 text-white rounded"
+                      >
+                        {isSavingEdit ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={cancelEditing}
+                        className="px-3 py-1 text-xs bg-gray-200 rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="message-avatar message-avatar-fallback">
-                    {getInitials(message.user?.name)}
-                  </div>
-                )}
-                <div className="message-body">
-                  <div className="message-meta">
-                    <span>
-                      {message.user?.name ?? "Anonymous"}
-                      {message.updatedAt !== message.createdAt ? " (edited)" : ""}
-                    </span>
-                    <span>{formatTime(message.createdAt)}</span>
-                  </div>
-                  {editingMessageId === message._id ? (
-                    <div className="stack">
-                      <textarea
-                        className="textarea message-edit-input"
-                        value={editingText}
-                        onChange={(event) => setEditingText(event.target.value)}
-                        disabled={isSavingEdit}
-                      />
-                      <div className="message-actions">
-                        <button
-                          className="message-action"
-                          type="button"
-                          onClick={saveEdit}
-                          disabled={isSavingEdit}
-                        >
-                          {isSavingEdit ? "Saving..." : "Save"}
+                  <>
+                    <div className="mt-1">{message.text}</div>
+
+                    {message.user?._id === currentUserId && (
+                      <div className="flex gap-2 mt-1 text-xs">
+                        <button onClick={() => startEditing(message)}>
+                          Edit
                         </button>
                         <button
-                          className="message-action secondary"
-                          type="button"
-                          onClick={cancelEditing}
-                          disabled={isSavingEdit}
+                          onClick={() => deleteMessage(message._id)}
+                          disabled={deletingMessageId === message._id}
                         >
-                          Cancel
+                          {deletingMessageId === message._id
+                            ? "Deleting..."
+                            : "Delete"}
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div>{message.text}</div>
-                      {message.user?._id === currentUserId ? (
-                        <div className="message-actions">
-                          <button
-                            className="message-action secondary"
-                            type="button"
-                            onClick={() => startEditing(message)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            className="message-action danger"
-                            type="button"
-                            onClick={() => deleteMessage(message._id)}
-                            disabled={deletingMessageId === message._id}
-                          >
-                            {deletingMessageId === message._id ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
+                    )}
+                  </>
+                )}
               </div>
-            </article>
+            </div>
           ))
         )}
       </div>
 
-      {typingText ? <div className="typing-indicator">{typingText}</div> : null}
-      {error ? <div className="error">{error}</div> : null}
+      {/* TYPING */}
+      {typingText && (
+        <div className="px-4 py-2 text-xs text-gray-500 border-t">
+          {typingText}
+        </div>
+      )}
 
-      <MessageInput activeWorkspace={activeWorkspace} />
+      {/* ERROR */}
+      {error && (
+        <div className="px-4 py-2 text-xs text-red-500 border-t">{error}</div>
+      )}
+
+      {/* INPUT (sticky) */}
+      <div className="sticky bottom-0 bg-white border-t p-3">
+        <MessageInput activeWorkspace={activeWorkspace} />
+      </div>
     </section>
   );
 }
