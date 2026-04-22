@@ -24,6 +24,8 @@ export type Message = {
   _id: string;
   workspace: string;
   text: string;
+  fileUrl?: string;
+  fileType?: string;
   createdAt: string;
   updatedAt: string;
   user: User;

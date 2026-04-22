@@ -14,7 +14,15 @@ const messageSchema = new mongoose.Schema(
     },
     text: {
       type: String,
-      required: true,
+      required: false, // Make text optional if a file is present
+      trim: true,
+    },
+    fileUrl: {
+      type: String,
+      trim: true,
+    },
+    fileType: {
+      type: String,
       trim: true,
     },
   },

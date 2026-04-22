@@ -192,13 +192,49 @@ export default function ChatBox({
                   ) : (
                     <>
                       <div
-                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${
+                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words flex flex-col gap-2 ${
                           isOwn
                             ? "bg-emerald-500/15 border border-emerald-500/20 text-[#d0cec8] rounded-tr-sm"
                             : "bg-[#111118] border border-white/[0.06] text-[#d0cec8] rounded-tl-sm"
                         }`}
                       >
-                        {message.text}
+                        {message.fileUrl && (
+                          <div className="mb-1">
+                            {message.fileType?.startsWith("image/") ? (
+                              <a href={message.fileUrl} target="_blank" rel="noopener noreferrer" className="block relative group overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
+                                <img 
+                                  src={message.fileUrl} 
+                                  alt="Attachment" 
+                                  className="max-w-full h-auto max-h-[300px] object-contain transition-transform duration-300 group-hover:scale-[1.02]" 
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-xs font-bold text-white border border-white/20">View Full Size</span>
+                                </div>
+                              </a>
+                            ) : (
+                              <a 
+                                href={message.fileUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-white/[0.06] hover:bg-black/30 transition-all group"
+                              >
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-xl shrink-0">
+                                  📄
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-[#d0cec8] truncate">Download Attachment</p>
+                                  <p className="text-[10px] text-[#4a4a5a] font-bold uppercase tracking-widest">{message.fileType?.split("/")[1] || "FILE"}</p>
+                                </div>
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6b6b7a] group-hover:text-emerald-400 transition-colors">
+                                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {message.text && <span>{message.text}</span>}
                       </div>
 
                       {/* Actions — show on hover, own messages only */}

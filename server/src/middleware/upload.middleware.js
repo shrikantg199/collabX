@@ -18,6 +18,14 @@ const uploadProfilePhoto = multer({
   fileFilter: imageFileFilter,
 });
 
+const uploadAttachment = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
+
 module.exports = {
   uploadProfilePhoto,
+  uploadAttachment,
 };

@@ -76,9 +76,21 @@ function emitWorkspaceEvent(io, event) {
         socketId: event.socketId,
       });
       return;
+    case "user.joined":
+      io.to(event.workspaceId).emit("user-joined", {
+        workspaceId: event.workspaceId,
+        user: event.user,
+      });
+      return;
+    case "user.left":
+      io.to(event.workspaceId).emit("user-left", {
+        workspaceId: event.workspaceId,
+        user: event.user,
+      });
+      return;
     default:
       return;
-  }
+    }
 }
 
 function getRedisDebugDetails(event) {
@@ -235,6 +247,14 @@ async function attachChatHandlers(io) {
         }
 
         await socket.join(workspaceId);
+
+        // Notify others that a user has joined
+        await publishWorkspaceEvent(io, {
+          type: "user.joined",
+          workspaceId,
+          user: serializeUser(socket.data.user),
+        });
+
         callback?.({ ok: true, workspaceId });
       } catch (error) {
         callback?.({ error: error.message || "Could not join workspace." });
@@ -281,10 +301,15 @@ async function attachChatHandlers(io) {
       });
     });
 
-    socket.on("send-message", async ({ workspaceId, text }, callback) => {
+    socket.on("send-message", async ({ workspaceId, text, fileUrl, fileType }, callback) => {
       try {
-        if (!workspaceId || !text?.trim()) {
-          callback?.({ error: "Workspace and message text are required." });
+        if (!workspaceId) {
+          callback?.({ error: "Workspace is required." });
+          return;
+        }
+
+        if (!text?.trim() && !fileUrl) {
+          callback?.({ error: "Message text or a file is required." });
           return;
         }
 
@@ -301,7 +326,9 @@ async function attachChatHandlers(io) {
         const message = await Message.create({
           workspace: workspaceId,
           user: socket.data.user._id,
-          text: text.trim(),
+          text: text?.trim(),
+          fileUrl,
+          fileType,
         });
 
         const hydratedMessage = await hydrateMessage(message._id);
@@ -505,6 +532,22 @@ async function attachChatHandlers(io) {
     });
 
     socket.on("disconnecting", () => {
+      const user = serializeUser(socket.data.user);
+      const joinedWorkspaceIds = Array.from(socket.rooms).filter(
+        (roomId) => roomId !== socket.id && !roomId.startsWith("doc-")
+      );
+
+      // Notify others that the user is leaving
+      void Promise.all(
+        joinedWorkspaceIds.map((workspaceId) =>
+          publishWorkspaceEvent(io, {
+            type: "user.left",
+            workspaceId,
+            user,
+          })
+        )
+      );
+
       void emitStoppedTypingForJoinedRooms(io, socket);
 
       const joinedDocumentRooms = Array.from(socket.rooms).filter(

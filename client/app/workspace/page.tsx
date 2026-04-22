@@ -172,6 +172,7 @@ export default function WorkspacePage() {
 
         const socket = connectSocket(token ?? "");
         socket.off("new-message"); socket.off("message-updated"); socket.off("message-deleted"); socket.off("typing-status");
+        socket.off("user-joined"); socket.off("user-left");
 
         socket.on("new-message", (message: Message) => {
           const isOwn = message.user?._id === userIdRef.current;
@@ -202,6 +203,18 @@ export default function WorkspacePage() {
           if (!isTyping) { setTypingUsers((c) => c.filter((e) => e._id !== tu._id)); return; }
           setTypingUsers((c) => { const exists = c.some((e) => e._id === tu._id); return exists ? c.map((e) => (e._id === tu._id ? tu : e)) : [...c, tu]; });
           typingTimeoutsRef.current[tu._id] = setTimeout(() => { setTypingUsers((c) => c.filter((e) => e._id !== tu._id)); delete typingTimeoutsRef.current[tu._id]; }, 2500);
+        });
+
+        socket.on("user-joined", ({ workspaceId, user: ju }: { workspaceId: string; user: User }) => {
+          if (!ju?._id || ju._id === userIdRef.current) return;
+          const wsName = workspacesRef.current.find((w) => w._id === workspaceId)?.name ?? "Workspace";
+          addToast(workspaceId, "User Joined", `${ju.name} has joined ${wsName}`);
+        });
+
+        socket.on("user-left", ({ workspaceId, user: lu }: { workspaceId: string; user: User }) => {
+          if (!lu?._id || lu._id === userIdRef.current) return;
+          const wsName = workspacesRef.current.find((w) => w._id === workspaceId)?.name ?? "Workspace";
+          addToast(workspaceId, "User Left", `${lu.name} has left ${wsName}`);
         });
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -410,12 +423,12 @@ export default function WorkspacePage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0f]">
         <div className="flex flex-col items-center gap-4">
-          <div className="relative w-12 h-12 flex items-center justify-center animate-pulse">
+          <div className="relative w-24 h-10 flex items-center justify-center animate-pulse">
             <Image
               src="/logo.png"
               alt="CollabX Logo"
-              width={48}
-              height={48}
+              width={200}
+              height={200}
               className="object-contain"
             />
           </div>
@@ -444,12 +457,12 @@ export default function WorkspacePage() {
 
           {/* Logo */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="relative w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center">
+            <div className="relative w-24 h-10 sm:w-24 sm:h-10 flex items-center justify-center">
               <Image
                 src="/logo.png"
                 alt="CollabX Logo"
-                width={32}
-                height={32}
+                width={200}
+                height={200}
                 className="object-contain"
               />
             </div>

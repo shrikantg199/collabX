@@ -53,11 +53,11 @@ function createApp() {
     if (res.headersSent) {
       return;
     }
-
+ 
     if (error?.name === "MulterError") {
       const message = error.code === "LIMIT_FILE_SIZE"
-        ? "Image size must be 5MB or less."
-        : error.message || "Photo upload failed.";
+        ? "File size exceeds the allowed limit."
+        : error.message || "File upload failed.";
 
       res.status(400).json({ message });
       return;
