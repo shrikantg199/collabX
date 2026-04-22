@@ -10,6 +10,7 @@ export type Workspace = {
   name: string;
   code: string;
   createdBy: string;
+  photoUrl?: string;
 };
 
 export type Document = {

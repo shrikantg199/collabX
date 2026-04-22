@@ -14,6 +14,11 @@ const workspaceSchema = new mongoose.Schema(
       uppercase: true,
       trim: true,
     },
+    photoUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

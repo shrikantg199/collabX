@@ -1,6 +1,8 @@
 const Workspace = require("../models/Workspace");
 const Message = require("../models/Message");
 const Document = require("../models/Document");
+const { uploadBuffer } = require("../utils/cloudinary");
+
 
 const CODE_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -290,6 +292,95 @@ async function getWorkspaceMembers(req, res) {
   }
 }
 
+async function updateWorkspace(req, res) {
+  try {
+    const { workspaceId } = req.params;
+    const { name, photoUrl } = req.body;
+
+    if (!workspaceId) {
+      return res.status(400).json({ message: "Workspace ID is required." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    // Check if user is a member
+    const isMember = workspace.members.some(
+      (m) => m.toString() === req.user._id.toString()
+    );
+
+    if (!isMember) {
+      return res.status(403).json({ message: "You are not a member of this workspace." });
+    }
+
+    if (name) workspace.name = name.trim();
+    if (photoUrl !== undefined) workspace.photoUrl = photoUrl.trim();
+
+    await workspace.save();
+
+    return res.json({ 
+      message: "Workspace updated successfully.",
+      workspace 
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Could not update workspace." });
+  }
+}
+
+async function uploadWorkspacePhoto(req, res) {
+  try {
+    const { workspaceId } = req.params;
+
+    if (!workspaceId) {
+      return res.status(400).json({ message: "Workspace ID is required." });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Please choose an image to upload." });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ message: "Workspace not found." });
+    }
+
+    // Check if user is a member
+    const isMember = workspace.members.some(
+      (m) => m.toString() === req.user._id.toString()
+    );
+
+    if (!isMember) {
+      return res.status(403).json({ message: "You are not a member of this workspace." });
+    }
+
+    const uploadedPhoto = await uploadBuffer(req.file.buffer, {
+      folder: "collabx/workspace-photos",
+      resource_type: "image",
+      public_id: `workspace-${workspaceId}-${Date.now()}`,
+      overwrite: true,
+    });
+
+    const photoUrl = uploadedPhoto.secure_url || uploadedPhoto.url;
+
+    if (!photoUrl) {
+      return res.status(500).json({ message: "Cloudinary did not return a photo URL." });
+    }
+
+    workspace.photoUrl = photoUrl;
+    await workspace.save();
+
+    return res.status(201).json({
+      photoUrl,
+      workspace,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Photo upload failed." });
+  }
+}
+
+
 module.exports = {
   getWorkspaces,
   createWorkspace,
@@ -299,4 +390,7 @@ module.exports = {
   transferOwnership,
   removeMember,
   getWorkspaceMembers,
+  updateWorkspace,
+  uploadWorkspacePhoto,
 };
+

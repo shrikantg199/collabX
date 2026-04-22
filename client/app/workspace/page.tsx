@@ -63,6 +63,13 @@ export default function WorkspacePage() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [selectedMemberToRemove, setSelectedMemberToRemove] = useState<string | null>(null);
   const [selectedNewOwner, setSelectedNewOwner] = useState("");
+  const [editingWorkspaceName, setEditingWorkspaceName] = useState("");
+  const [editingWorkspacePhotoUrl, setEditingWorkspacePhotoUrl] = useState("");
+  const [isSavingWorkspace, setIsSavingWorkspace] = useState(false);
+  const [isUploadingWorkspacePhoto, setIsUploadingWorkspacePhoto] = useState(false);
+  const [workspaceUpdateError, setWorkspaceUpdateError] = useState("");
+  const [workspaceUpdateSuccess, setWorkspaceUpdateSuccess] = useState("");
+  const [showWorkspaceEditModal, setShowWorkspaceEditModal] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<"workspaces" | "profile">("workspaces");
   const [sidebarOpen, setSidebarOpen] = useState(false); // Default closed on mobile
   const [activeTab, setActiveTab] = useState<"chat" | "editor">("chat");
@@ -251,6 +258,10 @@ export default function WorkspacePage() {
       } catch { setError("We could not load workspace messages."); }
     }
     loadMessages();
+    if (activeWorkspace) {
+      setEditingWorkspaceName(activeWorkspace.name);
+      setEditingWorkspacePhotoUrl(activeWorkspace.photoUrl ?? "");
+    }
   }, [activeWorkspaceId]);
 
   useEffect(() => {
@@ -323,6 +334,35 @@ export default function WorkspacePage() {
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setPasswordSuccess("Password updated.");
     } catch (e) { setPasswordError(getRequestErrorMessage(e, "We could not change your password yet.")); }
     finally { setIsSavingPassword(false); }
+  }
+
+  async function updateWorkspaceInfo() {
+    if (!activeWorkspaceId || !editingWorkspaceName.trim()) return;
+    setIsSavingWorkspace(true); setWorkspaceUpdateError(""); setWorkspaceUpdateSuccess("");
+    try {
+      const { data } = await api.put(`/workspaces/${activeWorkspaceId}`, { 
+        name: editingWorkspaceName.trim(), 
+        photoUrl: editingWorkspacePhotoUrl.trim() 
+      });
+      setWorkspaces((c) => c.map((w) => w._id === data.workspace._id ? data.workspace : w));
+      setWorkspaceUpdateSuccess("Workspace updated.");
+      setTimeout(() => setShowWorkspaceEditModal(false), 1000);
+    } catch (e) { setWorkspaceUpdateError(getRequestErrorMessage(e, "Could not update workspace.")); }
+    finally { setIsSavingWorkspace(false); }
+  }
+
+  async function handleWorkspacePhotoUpload(event: ChangeEvent<HTMLInputElement>) {
+    if (!activeWorkspaceId) return;
+    const file = event.target.files?.[0]; if (!file) return;
+    setIsUploadingWorkspacePhoto(true); setWorkspaceUpdateError(""); setWorkspaceUpdateSuccess("");
+    try {
+      const formData = new FormData(); formData.append("photo", file);
+      const { data } = await api.post(`/workspaces/${activeWorkspaceId}/photo`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      setEditingWorkspacePhotoUrl(data.photoUrl);
+      setWorkspaces((c) => c.map((w) => w._id === data.workspace._id ? data.workspace : w));
+      setWorkspaceUpdateSuccess("Photo uploaded. Save to apply.");
+    } catch (e) { setWorkspaceUpdateError(getRequestErrorMessage(e, "Photo upload failed.")); }
+    finally { setIsUploadingWorkspacePhoto(false); event.target.value = ""; }
   }
 
   function handleLogout() {
@@ -472,6 +512,9 @@ export default function WorkspacePage() {
           {activeWorkspace && (
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-[#3a3a4a] text-sm">/</span>
+              {activeWorkspace.photoUrl && (
+                <img src={activeWorkspace.photoUrl} alt="" className="w-5 h-5 rounded object-cover ring-1 ring-white/[0.05]" />
+              )}
               <span className="text-sm font-semibold text-[#d0cec8] truncate max-w-[80px] sm:max-w-[150px]">{activeWorkspace.name}</span>
               <button
                 onClick={() => copyWorkspaceCode(activeWorkspace.code)}
@@ -624,7 +667,13 @@ export default function WorkspacePage() {
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${isActive ? "bg-emerald-400" : "bg-[#3a3a4a]"}`} />
+                                {workspace.photoUrl ? (
+                                  <img src={workspace.photoUrl} alt="" className="w-6 h-6 rounded-lg object-cover shrink-0" />
+                                ) : (
+                                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-[#18181f] text-[#4a4a5a] border border-white/[0.06]"}`}>
+                                    {workspace.name.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
                                 <span className={`text-sm font-semibold truncate ${isActive ? "text-emerald-300" : "text-[#d0cec8]"}`}>
                                   {workspace.name}
                                 </span>
@@ -641,6 +690,12 @@ export default function WorkspacePage() {
 
                           {/* Action row */}
                           <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+                            <button
+                              className="flex-1 text-[10px] px-2 py-1.5 rounded-lg bg-[#18181f] border border-white/[0.06] text-[#6b6b7a] hover:text-[#d0cec8] hover:border-white/[0.1] transition-all font-semibold text-center whitespace-nowrap"
+                              onClick={(e) => { e.stopPropagation(); setEditingWorkspaceName(workspace.name); setEditingWorkspacePhotoUrl(workspace.photoUrl ?? ""); setShowWorkspaceEditModal(true); }}
+                            >
+                              Edit
+                            </button>
                             <button
                               className="flex-1 text-[10px] px-2 py-1.5 rounded-lg bg-[#18181f] border border-white/[0.06] text-[#6b6b7a] hover:text-[#d0cec8] hover:border-white/[0.1] transition-all font-semibold text-center whitespace-nowrap"
                               onClick={(e) => { e.stopPropagation(); router.push("/dashboard"); }}
@@ -759,11 +814,26 @@ export default function WorkspacePage() {
               {/* Main header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-white/[0.06] shrink-0 bg-[#0d0d12] gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                    <span className="text-base sm:text-lg">{activeTab === "chat" ? "💬" : "📝"}</span>
-                  </div>
+                  {activeWorkspace.photoUrl ? (
+                    <img src={activeWorkspace.photoUrl} alt="" className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover ring-1 ring-white/[0.1]" />
+                  ) : (
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                      <span className="text-base sm:text-lg">{activeTab === "chat" ? "💬" : "📝"}</span>
+                    </div>
+                  )}
                   <div>
-                    <p className="text-xs sm:text-sm font-bold text-white truncate max-w-[150px] sm:max-w-none">{activeWorkspace.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs sm:text-sm font-bold text-white truncate max-w-[150px] sm:max-w-none">{activeWorkspace.name}</p>
+                      <button 
+                        onClick={() => { setEditingWorkspaceName(activeWorkspace.name); setEditingWorkspacePhotoUrl(activeWorkspace.photoUrl ?? ""); setShowWorkspaceEditModal(true); }}
+                        className="p-1 rounded hover:bg-white/[0.05] text-[#4a4a5a] hover:text-emerald-400 transition-colors"
+                        title="Edit Workspace"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                        </svg>
+                      </button>
+                    </div>
                     <p className="text-[9px] sm:text-[10px] text-[#4a4a5a] font-medium uppercase tracking-wider">
                       {isCreator ? "👑 Creator" : "Member"}
                     </p>
@@ -968,6 +1038,69 @@ export default function WorkspacePage() {
           </div>
         </div>
       )}
+      {/* ── Workspace Edit Modal ── */}
+      {showWorkspaceEditModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0d0d12] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white">Workspace Settings</h3>
+              <button onClick={() => setShowWorkspaceEditModal(false)} className="text-[#4a4a5a] hover:text-white transition-colors">✕</button>
+            </div>
+            <div className="p-6 space-y-5">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative group">
+                  {editingWorkspacePhotoUrl ? (
+                    <img src={editingWorkspacePhotoUrl} alt="workspace icon" className="w-20 h-20 rounded-2xl object-cover ring-2 ring-emerald-500/20 shadow-lg shadow-emerald-500/10" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-[#18181f] border border-dashed border-white/[0.1] flex items-center justify-center text-3xl">🏢</div>
+                  )}
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-2xl">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-white">Change</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleWorkspacePhotoUpload} disabled={isUploadingWorkspacePhoto} />
+                  </label>
+                  {isUploadingWorkspacePhoto && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-2xl">
+                      <div className="w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] font-bold text-[#4a4a5a] uppercase tracking-widest">Workspace Icon</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <span className={labelCls}>Workspace Name</span>
+                  <input className={inputCls} placeholder="Enter workspace name" value={editingWorkspaceName} onChange={(e) => setEditingWorkspaceName(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <span className={labelCls}>Icon URL (optional)</span>
+                  <input className={inputCls} placeholder="https://..." value={editingWorkspacePhotoUrl} onChange={(e) => setEditingWorkspacePhotoUrl(e.target.value)} />
+                </div>
+              </div>
+
+              {workspaceUpdateError && <p className="text-xs text-red-400">⚠ {workspaceUpdateError}</p>}
+              {workspaceUpdateSuccess && <p className="text-xs text-emerald-400">✓ {workspaceUpdateSuccess}</p>}
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setShowWorkspaceEditModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-white/[0.08] text-sm font-semibold text-[#6b6b7a] hover:text-white hover:bg-white/[0.03] transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={updateWorkspaceInfo}
+                  disabled={isSavingWorkspace || !editingWorkspaceName.trim()}
+                  className="flex-1 py-3 rounded-xl bg-emerald-400 text-[#060d0a] text-sm font-bold hover:bg-emerald-300 disabled:opacity-50 transition-all shadow-lg shadow-emerald-500/10"
+                >
+                  {isSavingWorkspace ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
