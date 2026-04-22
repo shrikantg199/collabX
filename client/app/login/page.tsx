@@ -75,7 +75,7 @@ export default function LoginPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#0a0a0f] text-[#f0ede8] flex flex-col overflow-hidden">
+    <main className="min-h-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden">
 
       {/* Background glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -86,7 +86,7 @@ export default function LoginPage() {
       {/* Navbar */}
       <nav className="relative bg-[#0a0a0f]  z-10 flex items-center justify-between px-8 py-4 border-b border-white/[0.06]">
         <button onClick={() => router.push("/")} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 rounded-[10px] bg-emerald-400 flex items-center justify-center text-sm font-black text-[#060d0a] shadow-lg shadow-emerald-500/30">
+          <div className="w-8 h-8 rounded-[10px] bg-emerald-400 flex items-center justify-center text-sm font-black text-white shadow-lg shadow-emerald-500/30">
             ⚡
           </div>
           <span className="text-lg font-black tracking-tight text-white">CollabX</span>

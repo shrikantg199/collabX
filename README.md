@@ -1,122 +1,105 @@
-## CollabX Day 1
+# ⚡ CollabX
 
-Day 1 builds the project foundation and proves the first real collaboration loop:
+**Real-time Collaboration Platform for High-Velocity Teams**
 
-- JWT-based auth
-- Create and join a workspace
-- Socket.IO setup
-- Real-time chat without Redis
+CollabX is a premium, full-stack collaborative workspace designed for modern teams. It combines instant messaging, collaborative document editing, and workspace management into a single, high-performance platform.
 
-If both apps are running and MongoDB is available, the end-of-day target is met:
+![CollabX Banner](https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=2000)
 
-- Chat works in real time
+## ✨ Core Features
 
-## Architecture
+- **🚀 Chat-First Workspaces**: Create or join dedicated workspaces with instant invite codes.
+- **💬 Real-time Communication**: Persistent chat with live typing indicators and instant message delivery via Socket.IO.
+- **📝 Collaborative Editor**: Multi-user document editing with live synchronization.
+- **📊 Interactive Dashboard**: High-level overview of your workspaces, activity stats, and quick actions.
+- **🔒 Secure Authentication**: Robust JWT-based authentication with protected API routes.
+- **📱 Mobile Responsive**: Premium, state-of-the-art UI that works perfectly across desktop, tablet, and mobile.
+- **🔔 Smart Notifications**: Browser-level notifications and unread message tracking to keep you in the loop.
+
+## 🛠️ Technology Stack
+
+### Frontend
+- **Framework**: Next.js 15 (App Router)
+- **UI Library**: React 19
+- **Styling**: Tailwind CSS (Premium Dark Mode Aesthetics)
+- **State Management**: React Hooks (useRef, useMemo, useEffect)
+- **Icons & Graphics**: Heroicons & Lucide-inspired SVG iconography
+
+### Backend
+- **Runtime**: Node.js
+- **Framework**: Express
+- **Real-time**: Socket.IO
+- **Database**: MongoDB (Mongoose ODM)
+- **Caching/Scaling**: Redis (Pub/Sub for horizontal scaling)
+- **Auth**: JSON Web Tokens (JWT) & Bcrypt
+
+## 🏗️ Architecture
 
 ```text
-Next.js (Frontend)
-   ↓
-Node.js + Express
-   ↓
-Socket.IO
-   ↓
-Redis (Pub/Sub)   <- planned for Day 2
-   ↓
-MongoDB
+Next.js (App Router) ←───────┐
+       ↓                     │
+Node.js + Express  ←───→ Socket.IO (WebSockets)
+       ↓                     ↓
+    MongoDB  ←─────────→  Redis (Pub/Sub)
 ```
 
-## Project Structure
+## 🚀 Getting Started
 
-```text
-collabx/
-│
-├── client/        # Next.js app
-├── server/        # Node.js backend
-├── README.md
-```
+### 1. Prerequisites
+- Node.js (v18+)
+- MongoDB (Running locally or Atlas)
+- Redis (Optional for local development, required for multi-instance scaling)
 
-## Backend Overview
+### 2. Environment Setup
 
-The backend is structured for Day 1 delivery while keeping Day 2 expansion easy:
-
-- `auth` routes handle register, login, and current user lookup
-- `workspaces` routes handle create, join, and list
-- `messages` routes fetch message history for a workspace
-- Socket.IO handles room joins while Redis Pub/Sub fans messages across server instances
-- MongoDB remains the source of truth for message history
-
-## Frontend Overview
-
-The client uses the Next.js App Router and includes:
-
-- `/login` for sign up and sign in
-- `/workspace` for workspace creation, joining, and chat
-- `ChatBox`, `MessageInput`, and `Editor` components
-- `api.ts` for Axios setup
-- `socket.ts` for Socket.IO client connection
-
-## Environment Setup
-
-Create the environment files from the examples:
-
-### `server/.env`
-
+#### Server (`/server/.env`)
 ```env
 PORT=5000
 MONGODB_URI=mongodb://127.0.0.1:27017/collabx
 REDIS_URL=redis://127.0.0.1:6379
-JWT_SECRET=replace-with-a-strong-secret
+JWT_SECRET=your_super_secret_key
 CLIENT_URL=http://localhost:3000
 ```
 
-`REDIS_URL` is optional for local development. If you omit it, chat still works on a single backend instance and Redis-based scaling is disabled.
-
-### `client/.env.local`
-
+#### Client (`/client/.env.local`)
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 NEXT_PUBLIC_SOCKET_URL=http://localhost:5000
 ```
 
-## Install
-
-Install dependencies in both apps:
+### 3. Installation
 
 ```bash
+# Install server dependencies
 cd server
 npm install
 
+# Install client dependencies
 cd ../client
 npm install
 ```
 
-## Run
-
-Start the backend:
+### 4. Running the Application
 
 ```bash
-cd server
+# Start the backend (from /server)
+npm run dev
+
+# Start the frontend (from /client)
 npm run dev
 ```
 
-Start the frontend in a second terminal:
+Open [http://localhost:3000](http://localhost:3000) to see the app in action.
 
-```bash
-cd client
-npm run dev
-```
+## 📱 User Workflow
 
-Open `http://localhost:3000`.
+1. **Onboarding**: Sign up or sign in to access your personal dashboard.
+2. **Workspace Setup**: Create a new workspace or join an existing one using a 6-character invite code.
+3. **Collaborate**:
+   - Use the **Chat** tab for real-time team communication.
+   - Switch to the **Editor** tab for collaborative document drafting.
+4. **Manage**: Workspace creators can manage members, transfer ownership, or delete workspaces.
 
-## Day 1 User Flow
+---
 
-1. Create an account or log in.
-2. Create a workspace or join one using a code.
-3. Open the workspace screen.
-4. Send messages and see them appear live for connected members.
-
-## Notes
-
-- Day 2 chat fanout goes through Redis Pub/Sub when `REDIS_URL` is configured, which lets multiple backend instances stay in sync.
-- Messages are still persisted in MongoDB and loaded through the REST API on workspace open.
-- Socket auth uses the same JWT as the REST API.
+Built with ❤️ for teams who ship fast.

@@ -3,6 +3,7 @@
 import axios from "axios";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import ChatBox from "@/components/ChatBox";
 import Editor from "@/components/Editor";
 import api from "@/lib/api";
@@ -409,8 +410,14 @@ export default function WorkspacePage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#0a0a0f]">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-400 flex items-center justify-center animate-pulse shadow-lg shadow-emerald-500/30">
-            <span className="text-[#060d0a] text-xl font-bold">⚡</span>
+          <div className="relative w-12 h-12 flex items-center justify-center animate-pulse">
+            <Image
+              src="/logo.png"
+              alt="CollabX Logo"
+              width={48}
+              height={48}
+              className="object-contain"
+            />
           </div>
           <p className="text-sm text-[#6b6b7a] font-medium">Loading your workspace...</p>
         </div>
@@ -437,10 +444,15 @@ export default function WorkspacePage() {
 
           {/* Logo */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="w-7 h-7 rounded-lg bg-emerald-400 flex items-center justify-center shadow-md shadow-emerald-500/30">
-              <span className="text-[#060d0a] text-xs font-black">⚡</span>
+            <div className="relative w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center">
+              <Image
+                src="/logo.png"
+                alt="CollabX Logo"
+                width={32}
+                height={32}
+                className="object-contain"
+              />
             </div>
-            <span className="font-black text-white tracking-tight text-base hidden sm:block">CollabX</span>
           </div>
 
           {/* Active workspace breadcrumb */}

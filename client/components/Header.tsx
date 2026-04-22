@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 
+import Image from "next/image";
 import ProfileDropdown from "./ProfileDropdown";
 
 export default function Header() {
@@ -28,12 +29,12 @@ export default function Header() {
     }
   }, []);
 
-  // Don't show header on workspace page (it has its own header)
-  if (pathname === "/workspace") {
+  // Don't show global header on workspace or login pages (they have their own headers)
+  if (pathname === "/workspace" || pathname === "/login") {
     return null;
   }
 
-  const isDarkPage = pathname === "/" || pathname === "/dashboard";
+  const isDarkPage = pathname === "/" || pathname === "/dashboard" || pathname === "/login";
 
   return (
     <nav className={
@@ -46,20 +47,15 @@ export default function Header() {
           onClick={() => router.push("/")}
           className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity"
         >
-          <div className={
-            isDarkPage
-              ? "w-7 h-7 sm:w-8 sm:h-8 rounded-[10px] bg-emerald-400 flex items-center justify-center text-xs sm:text-sm font-bold text-[#060d0a] shadow-lg shadow-emerald-500/30"
-              : "w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-white text-xs sm:text-sm font-bold"
-          }>
-            ⚡
+          <div className="relative w-24 h-10 sm:w-24 sm:h-10 flex items-center justify-center">
+            <Image
+              src="/logo.png"
+              alt="CollabX Logo"
+              width={96}
+              height={96}
+              className="object-contain"
+            />
           </div>
-          <span className={
-            isDarkPage
-              ? "text-lg sm:text-xl font-black tracking-tight text-black"
-              : "text-lg sm:text-xl font-bold tracking-tight text-white"
-          }>
-            CollabX
-          </span>
         </button>
 
         <div className="flex items-center gap-2">
