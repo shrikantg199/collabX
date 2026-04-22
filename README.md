@@ -89,17 +89,17 @@ npm run dev
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app in action.
+Open `http://localhost:3000`.
 
-## 📱 User Workflow
+## Day 1 User Flow
 
-1. **Onboarding**: Sign up or sign in to access your personal dashboard.
-2. **Workspace Setup**: Create a new workspace or join an existing one using a 6-character invite code.
-3. **Collaborate**:
-   - Use the **Chat** tab for real-time team communication.
-   - Switch to the **Editor** tab for collaborative document drafting.
-4. **Manage**: Workspace creators can manage members, transfer ownership, or delete workspaces.
+1. Create an account or log in.
+2. Create a workspace or join one using a code.
+3. Open the workspace screen.
+4. Send messages and see them appear live for connected members.
 
----
+## Notes
 
-Built with ❤️ for teams who ship fast.
+- Day 2 chat fanout goes through Redis Pub/Sub when `REDIS_URL` is configured, which lets multiple backend instances stay in sync.
+- Messages are still persisted in MongoDB and loaded through the REST API on workspace open.
+- Socket auth uses the same JWT as the REST API.
