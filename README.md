@@ -107,16 +107,3 @@ npm run dev
 ```
 
 Open `http://localhost:3000`.
-
-## Day 1 User Flow
-
-1. Create an account or log in.
-2. Create a workspace or join one using a code.
-3. Open the workspace screen.
-4. Send messages and see them appear live for connected members.
-
-## Notes
-
-- Day 2 chat fanout goes through Redis Pub/Sub when `REDIS_URL` is configured, which lets multiple backend instances stay in sync.
-- Messages are still persisted in MongoDB and loaded through the REST API on workspace open.
-- Socket auth uses the same JWT as the REST API.
