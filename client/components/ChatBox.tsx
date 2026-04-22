@@ -49,10 +49,13 @@ export default function ChatBox({
     return `${typingUsers[0].name} and ${typingUsers.length - 1} others are typing...`;
   }, [typingUsers]);
 
+  const lastWorkspaceIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     const container = messagesRef.current;
-    if (!container || messages.length === 0) return;
+    if (!container || messages.length === 0 || !activeWorkspace) return;
 
+    const isNewWorkspace = lastWorkspaceIdRef.current !== activeWorkspace._id;
     const lastMessage = messages[messages.length - 1];
     const isOwn = lastMessage.user?._id === currentUserId;
 
@@ -60,17 +63,27 @@ export default function ChatBox({
     const isNearBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight < 150;
 
-    // Always scroll if it's our own message, or if we're already near the bottom
-    if (isOwn || isNearBottom) {
-      // Use setTimeout to ensure the DOM has rendered the new message
+    // Scroll if:
+    // 1. We just switched to this workspace (Initial load)
+    // 2. It's our own message
+    // 3. We're already near the bottom
+    if (isNewWorkspace || isOwn || isNearBottom) {
+      // Use instant scroll for first load to avoid seeing the jump, smooth for live messages
+      const behavior = isNewWorkspace ? "auto" : "smooth";
+
       setTimeout(() => {
         container.scrollTo({
           top: container.scrollHeight,
-          behavior: "smooth",
+          behavior: behavior as ScrollBehavior,
         });
-      }, 50);
+        
+        // Mark this workspace as "loaded" after scrolling
+        if (isNewWorkspace) {
+          lastWorkspaceIdRef.current = activeWorkspace._id;
+        }
+      }, isNewWorkspace ? 0 : 50);
     }
-  }, [messages, currentUserId]);
+  }, [messages, currentUserId, activeWorkspace]);
 
   useEffect(() => {
     if (!editingMessageId) { setEditingText(""); setError(""); return; }
