@@ -51,13 +51,26 @@ export default function ChatBox({
 
   useEffect(() => {
     const container = messagesRef.current;
-    if (!container) return;
+    if (!container || messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+    const isOwn = lastMessage.user?._id === currentUserId;
+
+    // Check if user is near bottom (within 150px)
     const isNearBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-    if (isNearBottom) {
-      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+
+    // Always scroll if it's our own message, or if we're already near the bottom
+    if (isOwn || isNearBottom) {
+      // Use setTimeout to ensure the DOM has rendered the new message
+      setTimeout(() => {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: "smooth",
+        });
+      }, 50);
     }
-  }, [messages]);
+  }, [messages, currentUserId]);
 
   useEffect(() => {
     if (!editingMessageId) { setEditingText(""); setError(""); return; }
