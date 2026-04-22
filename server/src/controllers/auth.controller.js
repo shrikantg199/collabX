@@ -60,12 +60,12 @@ async function register(req, res) {
       return res.status(400).json({ message: photoUrlError });
     }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email }).lean();
     if (existingUser) {
       return res.status(409).json({ message: "User already exists." });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 8);
     const user = await User.create({
       name,
       email,
@@ -91,7 +91,7 @@ async function login(req, res) {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).lean();
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
@@ -199,7 +199,7 @@ async function updatePassword(req, res) {
       return res.status(400).json({ message: "Choose a new password different from the current one." });
     }
 
-    user.password = await bcrypt.hash(newPassword, 10);
+    user.password = await bcrypt.hash(newPassword, 8);
     await user.save();
 
     return res.json({ message: "Password updated successfully." });

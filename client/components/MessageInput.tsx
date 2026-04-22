@@ -15,155 +15,95 @@ export default function MessageInput({ activeWorkspace }: MessageInputProps) {
 
   const formRef = useRef<HTMLFormElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const typingWorkspaceIdRef = useRef<string | null>(null);
   const isTypingRef = useRef(false);
 
   function emitTypingStatus(workspaceId: string, isTyping: boolean) {
-    const socket = connectSocket(
-      window.localStorage.getItem("collabx_token") ?? "",
-    );
-
+    const socket = connectSocket(window.localStorage.getItem("collabx_token") ?? "");
     socket.emit("typing-status", { workspaceId, isTyping });
-
     isTypingRef.current = isTyping;
     typingWorkspaceIdRef.current = isTyping ? workspaceId : null;
   }
 
   function stopTyping(workspaceId?: string | null) {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
-
-    const targetWorkspaceId = workspaceId ?? typingWorkspaceIdRef.current;
-    if (!targetWorkspaceId || !isTypingRef.current) return;
-
-    emitTypingStatus(targetWorkspaceId, false);
+    if (typingTimeoutRef.current) { clearTimeout(typingTimeoutRef.current); typingTimeoutRef.current = null; }
+    const target = workspaceId ?? typingWorkspaceIdRef.current;
+    if (!target || !isTypingRef.current) return;
+    emitTypingStatus(target, false);
   }
 
   function scheduleTypingStop(workspaceId: string) {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      stopTyping(workspaceId);
-    }, 1500);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => stopTyping(workspaceId), 1500);
   }
 
   function autoResize() {
     const el = textareaRef.current;
     if (!el) return;
-
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 96) + "px"; // max ~4 lines
+    el.style.height = Math.min(el.scrollHeight, 96) + "px";
   }
 
   function handleTextChange(nextValue: string) {
     setText(nextValue);
     setError("");
     autoResize();
-
     if (!activeWorkspace) return;
-
-    if (!nextValue.trim()) {
-      stopTyping(activeWorkspace._id);
-      return;
-    }
-
-    if (
-      !isTypingRef.current ||
-      typingWorkspaceIdRef.current !== activeWorkspace._id
-    ) {
+    if (!nextValue.trim()) { stopTyping(activeWorkspace._id); return; }
+    if (!isTypingRef.current || typingWorkspaceIdRef.current !== activeWorkspace._id) {
       emitTypingStatus(activeWorkspace._id, true);
     }
-
     scheduleTypingStop(activeWorkspace._id);
   }
 
   useEffect(() => {
-    const currentWorkspaceId = activeWorkspace?._id ?? null;
-
-    if (
-      typingWorkspaceIdRef.current &&
-      typingWorkspaceIdRef.current !== currentWorkspaceId
-    ) {
+    const currentId = activeWorkspace?._id ?? null;
+    if (typingWorkspaceIdRef.current && typingWorkspaceIdRef.current !== currentId) {
       stopTyping(typingWorkspaceIdRef.current);
     }
   }, [activeWorkspace?._id]);
 
-  useEffect(() => {
-    return () => {
-      stopTyping();
-    };
-  }, []);
+  useEffect(() => () => { stopTyping(); }, []);
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      event.key !== "Enter" ||
-      event.shiftKey ||
-      event.nativeEvent.isComposing
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
     if (!text.trim() || !activeWorkspace || isSending) return;
-
     formRef.current?.requestSubmit();
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     if (!activeWorkspace || !text.trim()) return;
-
     setIsSending(true);
     setError("");
-
-    const socket = connectSocket(
-      window.localStorage.getItem("collabx_token") ?? "",
-    );
-
+    const socket = connectSocket(window.localStorage.getItem("collabx_token") ?? "");
     socket.emit(
       "send-message",
-      {
-        workspaceId: activeWorkspace._id,
-        text: text.trim(),
-      },
+      { workspaceId: activeWorkspace._id, text: text.trim() },
       (response: { error?: string; ok?: boolean }) => {
         setIsSending(false);
-
-        if (response.error || !response.ok) {
-          setError(response.error ?? "Message could not be delivered.");
-          return;
-        }
-
+        if (response.error || !response.ok) { setError(response.error ?? "Message could not be delivered."); return; }
         stopTyping(activeWorkspace._id);
         setText("");
-
-        if (textareaRef.current) {
-          textareaRef.current.style.height = "auto";
-        }
+        if (textareaRef.current) textareaRef.current.style.height = "auto";
       },
     );
   }
 
+  const isDisabled = !activeWorkspace || isSending;
+
   return (
-    <form
-      ref={formRef}
-      onSubmit={handleSubmit}
-      className="shrink-0  bg-white px-3 py-2 -mt-24"
-    >
-      {/* Input Container */}
-      <div className="flex items-end gap-2 bg-gray-50 border border-gray-200 rounded-xl px-2 py-2 focus-within:ring-2 focus-within:ring-emerald-400 transition">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-2">
+      {/* Input container */}
+      <div className={`flex items-end gap-2 bg-[#111118] border rounded-2xl px-3 py-2.5 transition-all duration-150 ${
+        isDisabled ? "border-white/[0.04] opacity-60" : "border-white/[0.08] focus-within:border-emerald-500/30 focus-within:ring-2 focus-within:ring-emerald-500/20"
+      }`}>
         <textarea
           ref={textareaRef}
           rows={1}
-          className="flex-1 resize-none bg-transparent outline-none text-sm placeholder:text-gray-400 max-h-24 overflow-y-auto px-1"
+          className="flex-1 resize-none bg-transparent outline-none text-sm text-[#d0cec8] placeholder:text-[#3a3a4a] max-h-24 overflow-y-auto leading-relaxed"
           placeholder={
             activeWorkspace
               ? `Message ${activeWorkspace.name}...`
@@ -172,25 +112,34 @@ export default function MessageInput({ activeWorkspace }: MessageInputProps) {
           value={text}
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={!activeWorkspace || isSending}
+          disabled={isDisabled}
         />
 
         <button
           type="submit"
-          disabled={!activeWorkspace || isSending}
-          className="h-9 px-4 rounded-lg bg-emerald-500 text-white text-sm font-semibold hover:bg-emerald-600 active:scale-95 transition disabled:opacity-50 flex items-center justify-center"
+          disabled={isDisabled || !text.trim()}
+          className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-400 text-[#060d0a] hover:bg-emerald-300 hover:shadow-lg hover:shadow-emerald-500/25 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+          title="Send message"
         >
-          {isSending ? <span className="animate-pulse">...</span> : "Send"}
+          {isSending ? (
+            <span className="w-3.5 h-3.5 border-2 border-[#060d0a]/30 border-t-[#060d0a] rounded-full animate-spin" />
+          ) : (
+            <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+            </svg>
+          )}
         </button>
       </div>
 
-      {/* Bottom Info */}
-      <div className="flex items-center justify-between text-[11px] mt-1 px-1">
+      {/* Bottom hint / error */}
+      <div className="px-1 min-h-[16px]">
         {error ? (
-          <span className="text-red-500">{error}</span>
+          <span className="text-[11px] text-red-400 flex items-center gap-1">
+            <span>⚠</span> {error}
+          </span>
         ) : (
-          <span className="text-gray-400">
-            Press Enter to send • Shift + Enter for new line
+          <span className="text-[11px] text-[#3a3a4a]">
+            Enter to send · Shift+Enter for new line
           </span>
         )}
       </div>

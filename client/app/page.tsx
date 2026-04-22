@@ -1,9 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function HomePage() {
   const router = useRouter();
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
 
   const features = [
     {
@@ -44,273 +50,313 @@ export default function HomePage() {
     },
   ];
 
+  const techStack = [
+    "Next.js 15", "React 19", "TypeScript", "Node.js",
+    "Socket.IO", "MongoDB", "Redis", "Express",
+  ];
+
   return (
-    <main className="min-h-screen bg-white text-gray-900 overflow-hidden pt-20">
-      {/* Subtle background texture */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-50 rounded-full blur-[120px] opacity-70" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-emerald-50 rounded-full blur-[100px] opacity-50" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-gray-50 rounded-full blur-[80px]" />
+    <main className="min-h-screen bg-[#0a0a0f] text-[#f0ede8] overflow-x-hidden">
+
+      {/* ── Background ── */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div
+          className="absolute inset-0 opacity-[0.025]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)",
+            backgroundSize: "60px 60px",
+          }}
+        />
+        <div className="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full bg-emerald-500/[0.07] blur-[120px]" />
+        <div className="absolute bottom-0 -left-40 w-[600px] h-[600px] rounded-full bg-blue-600/[0.04] blur-[120px]" />
       </div>
 
-      {/* Hero Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-4 pb-4">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left Content */}
-          <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 border border-emerald-200">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-emerald-700">
-                Real-time Collaboration Platform
-              </span>
+      {/* ── Navbar ── */}
+      {/* Header is handled by layout.tsx */}
+
+      {/* ── Hero ── */}
+      <section className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-8 pt-24 sm:pt-36 pb-16 sm:pb-20">
+        <div className="grid lg:grid-cols-2 gap-20 items-center">
+
+          {/* Left */}
+          <div
+            className={`space-y-8 transition-all duration-700 ${
+              isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+            }`}
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold tracking-widest uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Real-time Collaboration Platform
             </div>
 
-            <h1 className="text-6xl lg:text-7xl font-black leading-[1.05] tracking-tight text-gray-900">
+            <h1 className="text-4xl sm:text-6xl lg:text-[68px] font-black leading-[1.05] sm:leading-[1.02] tracking-tight text-center lg:text-left">
               Work Together,
-              <span className="block text-emerald-500">Ship Faster.</span>
+              <span
+                className="block"
+                style={{
+                  background: "linear-gradient(100deg, #f0ede8 0%, #00e87a 45%, #f0ede8 85%)",
+                  backgroundSize: "200% auto",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                Ship Faster.
+              </span>
             </h1>
 
-            <p className="text-xl text-gray-500 leading-relaxed max-w-lg">
+            <p className="text-base sm:text-lg text-[#6b6b7a] leading-relaxed max-w-md mx-auto lg:mx-0 text-center lg:text-left">
               The modern workspace for teams who move fast. Chat, collaborate,
-              and build together in real-time with powerful workspace
-              management.
+              and build together in real-time with powerful workspace management.
             </p>
 
-            {/* CTAs */}
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center lg:justify-start">
               <button
                 onClick={() => router.push("/login")}
-                className="group px-8 py-4 rounded-xl bg-emerald-500 text-white font-bold text-lg hover:bg-emerald-600 hover:shadow-2xl hover:shadow-emerald-500/30 transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                className="group px-8 py-3.5 rounded-xl bg-emerald-400 text-[#060d0a] font-bold text-base hover:bg-emerald-300 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-emerald-500/30 transition-all duration-200 flex items-center gap-2"
               >
-                Start Collaborating Now
-                <span className="group-hover:translate-x-1 transition-transform">
-                  →
-                </span>
+                Start Collaborating
+                <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
               </button>
               <button
                 onClick={() => router.push("/login")}
-                className="px-8 py-4 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 font-medium text-lg"
+                className="px-8 py-3.5 rounded-xl border border-white/[0.08] text-[#9898a8] font-medium text-base hover:bg-white/[0.04] hover:border-white/[0.14] hover:text-white hover:-translate-y-0.5 transition-all duration-200"
               >
                 Sign In
               </button>
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-8 pt-8 border-t border-gray-100">
-              <div>
-                <div className="text-3xl font-bold text-emerald-500">500+</div>
-                <div className="text-sm text-gray-400 mt-1">Teams onboard</div>
-              </div>
-              <div className="w-px h-12 bg-gray-100" />
-              <div>
-                <div className="text-3xl font-bold text-gray-900">&lt;50ms</div>
-                <div className="text-sm text-gray-400 mt-1">Avg latency</div>
-              </div>
-              <div className="w-px h-12 bg-gray-100" />
-              <div>
-                <div className="text-3xl font-bold text-emerald-500">99.9%</div>
-                <div className="text-sm text-gray-400 mt-1">Uptime SLA</div>
-              </div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-2">
+              {[
+                { num: "500+", label: "Teams Onboard" },
+                { num: "<50ms", label: "Avg Latency" },
+                { num: "99.9%", label: "Uptime SLA" },
+              ].map((s) => (
+                <div
+                  key={s.num}
+                  className="flex-1 py-4 px-3 rounded-xl bg-[#111118] border border-white/[0.06] text-center hover:border-emerald-500/20 hover:bg-emerald-500/[0.04] transition-all duration-200"
+                >
+                  <div className="text-2xl font-black text-emerald-400 leading-none">{s.num}</div>
+                  <div className="text-[10px] text-[#6b6b7a] mt-1.5 font-semibold uppercase tracking-widest">{s.label}</div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Right Visual - Chat Preview */}
-          <div className="relative">
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-2xl shadow-gray-200/80 overflow-hidden">
-              {/* Window Header */}
-              <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                <div className="flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
+          {/* Right – Chat Window */}
+          <div
+            className={`relative transition-all duration-700 delay-200 ${
+              isLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            }`}
+          >
+            {/* Glow behind */}
+            <div className="absolute inset-0 -m-12 rounded-full bg-emerald-500/[0.08] blur-3xl pointer-events-none" />
+
+            {/* Decorative rings */}
+            <div className="absolute -right-14 top-1/2 -translate-y-1/2 w-64 h-64 rounded-full border border-emerald-500/[0.08] pointer-events-none" />
+            <div className="absolute -right-7 top-1/2 -translate-y-1/2 w-36 h-36 rounded-full border border-emerald-500/[0.06] pointer-events-none" />
+
+            <div
+              className="relative rounded-3xl bg-[#111118] border border-white/[0.07] overflow-hidden"
+              style={{
+                boxShadow: "0 0 0 1px rgba(0,232,122,0.05), 0 40px 80px rgba(0,0,0,0.7)",
+                animation: "float 6s ease-in-out infinite",
+              }}
+            >
+              {/* Chrome bar */}
+              <div className="flex items-center gap-3 px-5 py-4 bg-[#18181f] border-b border-white/[0.06]">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f5a]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#ffbe2e]" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-[#2ac840]" />
                 </div>
-                <span className="ml-4 text-sm font-medium text-gray-400">
-                  Team Workspace
-                </span>
+                <span className="ml-3 text-xs font-semibold text-[#6b6b7a]"># team-general</span>
+                <div className="ml-auto flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  3 online
+                </div>
               </div>
 
-              {/* Chat Messages */}
-              <div className="p-6 space-y-4 min-h-[400px] bg-white">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center font-bold text-white shrink-0">
-                    A
-                  </div>
-                  <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
-                    <div className="text-sm font-semibold text-emerald-600 mb-1">
-                      Alice
-                    </div>
-                    <div className="text-gray-700">
-                      Hey team! How's the sprint going? 🚀
-                    </div>
+              {/* Messages */}
+              <div className="p-6 space-y-4 min-h-[300px] bg-[#111118]">
+                {/* Msg 1 */}
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 flex items-center justify-center text-xs font-bold text-[#060d0a] shrink-0">A</div>
+                  <div className="bg-[#18181f] border border-white/[0.06] rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
+                    <div className="text-[10px] font-bold text-emerald-400 mb-1 uppercase tracking-wider">Alice</div>
+                    <div className="text-sm text-[#d0cec8]">Hey team! How's the sprint going? 🚀</div>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 justify-end">
-                  <div className="bg-emerald-500 rounded-2xl rounded-tr-none px-4 py-3 max-w-[80%]">
-                    <div className="text-white">
-                      Making great progress! Just pushed the new features
-                    </div>
+                {/* Msg 2 – right */}
+                <div className="flex items-start gap-2.5 flex-row-reverse">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-violet-800 flex items-center justify-center text-xs font-bold text-white shrink-0">Y</div>
+                  <div className="bg-emerald-400 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%]">
+                    <div className="text-sm text-[#060d0a] font-semibold">Making great progress! Just pushed the new features ✨</div>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center font-bold text-white shrink-0">
-                    B
-                  </div>
-                  <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-tl-none px-4 py-3 max-w-[80%]">
-                    <div className="text-sm font-semibold text-gray-700 mb-1">
-                      Bob
-                    </div>
-                    <div className="text-gray-700">
-                      Awesome! Let's review together 👍
-                    </div>
+                {/* Msg 3 */}
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 flex items-center justify-center text-xs font-bold text-white shrink-0">B</div>
+                  <div className="bg-[#18181f] border border-white/[0.06] rounded-2xl rounded-tl-sm px-4 py-3 max-w-[80%]">
+                    <div className="text-[10px] font-bold text-blue-400 mb-1 uppercase tracking-wider">Bob</div>
+                    <div className="text-sm text-[#d0cec8]">Awesome! Let's review together 👍</div>
                   </div>
                 </div>
 
-                {/* Typing Indicator */}
-                <div className="flex items-center gap-2 px-4 py-3 text-gray-400">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
-                    <span
-                      className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.1s" }}
-                    />
-                    <span
-                      className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.2s" }}
-                    />
+                {/* Msg 4 – right */}
+                <div className="flex items-start gap-2.5 flex-row-reverse">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-violet-800 flex items-center justify-center text-xs font-bold text-white shrink-0">Y</div>
+                  <div className="bg-emerald-400 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%]">
+                    <div className="text-sm text-[#060d0a] font-semibold">PR is up! lgtm 🔥</div>
                   </div>
-                  <span className="text-sm text-gray-400">
-                    Alice is typing...
-                  </span>
+                </div>
+
+                {/* Typing */}
+                <div className="flex items-center gap-2 text-xs text-[#6b6b7a]">
+                  <div className="flex gap-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                  Alice is typing...
+                </div>
+              </div>
+
+              {/* Input bar */}
+              <div className="px-5 py-4 bg-[#18181f] border-t border-white/[0.06] flex items-center gap-3">
+                <div className="flex-1 bg-[#111118] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-[#3a3a4a]">
+                  Message #team-general...
+                </div>
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 text-sm font-bold">
+                  ↑
                 </div>
               </div>
             </div>
-
-            {/* Decorative */}
-            <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-100 rounded-full blur-2xl" />
-            <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-emerald-50 rounded-full blur-2xl" />
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 py-24">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight text-gray-900">
-            Everything Your Team Needs
+      {/* ── Features ── */}
+      <section className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-8 py-16 sm:py-24">
+        <div className="text-center mb-16 space-y-4">
+          <div className="inline-flex items-center gap-3 text-[11px] font-bold tracking-[0.12em] uppercase text-emerald-400">
+            <span className="w-6 h-px bg-emerald-400/50" />
+            Everything You Need
+            <span className="w-6 h-px bg-emerald-400/50" />
+          </div>
+          <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white">
+            Built for teams{" "}
+            <span className="text-[#3a3a4a] font-light">who move fast.</span>
           </h2>
-          <p className="text-xl text-gray-400 max-w-xl mx-auto">
+          <p className="text-[#6b6b7a] text-lg max-w-lg mx-auto">
             Powerful features to supercharge your collaboration
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, idx) => (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {features.map((f, i) => (
             <div
-              key={idx}
-              className={`group p-8 rounded-2xl border transition-all duration-300 transform hover:scale-[1.03] cursor-default
-                ${
-                  feature.featured
-                    ? "bg-emerald-50 border-emerald-200 hover:border-emerald-400 shadow-sm shadow-emerald-100"
-                    : "bg-white border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 shadow-sm"
+              key={i}
+              className={`group p-7 rounded-2xl border transition-all duration-300 hover:-translate-y-1.5 cursor-default relative overflow-hidden
+                ${f.featured
+                  ? "bg-emerald-500/[0.05] border-emerald-500/20 hover:border-emerald-500/40"
+                  : "bg-[#111118] border-white/[0.06] hover:border-emerald-500/15 hover:bg-emerald-500/[0.03]"
                 }`}
             >
-              {feature.featured && (
-                <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-100 border border-emerald-200 text-emerald-700 text-xs font-semibold mb-4">
+              {/* Top shimmer */}
+              <div
+                className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent transition-opacity duration-300 ${
+                  f.featured ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                }`}
+              />
+
+              {f.featured && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-widest mb-4">
                   ★ Core Feature
                 </div>
               )}
-              <div className="text-4xl mb-4">{feature.icon}</div>
-              <h3
-                className={`text-xl font-bold mb-3 transition-colors
-                ${feature.featured ? "text-emerald-700" : "text-gray-900 group-hover:text-emerald-600"}`}
-              >
-                {feature.title}
+
+              <div className="text-3xl mb-4">{f.icon}</div>
+              <h3 className={`text-lg font-bold mb-2.5 tracking-tight transition-colors duration-200 ${
+                f.featured ? "text-emerald-300" : "text-white group-hover:text-emerald-300"
+              }`}>
+                {f.title}
               </h3>
-              <p className="text-gray-500 leading-relaxed text-sm">
-                {feature.desc}
-              </p>
+              <p className="text-sm text-[#6b6b7a] leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 py-24">
-        <div className="relative rounded-3xl bg-emerald-500 p-16 text-center overflow-hidden">
-          {/* Decorative inner glow */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-1 bg-white/30 rounded-full" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.15),transparent_70%)]" />
+      {/* ── CTA ── */}
+      <section className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-8 py-12 sm:py-16">
+        <div className="relative rounded-3xl bg-[#111118] border border-white/[0.07] p-10 sm:p-20 text-center overflow-hidden">
+          {/* Top edge line */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-px bg-gradient-to-r from-transparent via-emerald-400 to-transparent" />
+          {/* Glow */}
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-emerald-500/[0.07] blur-3xl rounded-full pointer-events-none" />
 
-          <div className="relative z-10">
-            <h2 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight text-white">
+          <div className="relative z-10 space-y-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-semibold tracking-widest uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Free forever for small teams
+            </div>
+
+            <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
               Ready to Transform
               <br />
-              Your Team's Workflow?
+              <span className="text-[#3a3a4a] font-light">Your Team's Workflow?</span>
             </h2>
-            <p className="text-xl text-emerald-100 mb-2 max-w-2xl mx-auto">
-              Join 500+ teams already collaborating faster with CollabX
+
+            <p className="text-[#6b6b7a] text-lg max-w-xl mx-auto">
+              Join 500+ teams already collaborating faster with CollabX. No credit card required.
             </p>
-            <p className="text-sm text-emerald-200 mb-10">
-              No credit card required · Free forever for small teams
-            </p>
+
             <button
               onClick={() => router.push("/login")}
-              className="group px-12 py-5 rounded-xl bg-white text-emerald-600 font-bold text-xl hover:shadow-2xl hover:shadow-emerald-700/30 transition-all duration-300 transform hover:scale-105 inline-flex items-center gap-3"
+              className="group inline-flex items-center gap-3 px-12 py-4 rounded-xl bg-emerald-400 text-[#060d0a] font-bold text-lg hover:bg-emerald-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-500/30 transition-all duration-200"
             >
               Get Started Free Today
-              <span className="group-hover:translate-x-1 transition-transform">
-                →
-              </span>
+              <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-gray-100 py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-6 text-center space-y-6">
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">⚡</span>
+      {/* ── Footer ── */}
+      <footer className="relative z-10 border-t border-white/[0.06] py-12 mt-8">
+        <div className="max-w-[1200px] mx-auto px-8 text-center space-y-6">
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-8 h-8 rounded-[10px] bg-emerald-400 flex items-center justify-center text-sm font-bold text-[#060d0a] shadow-lg shadow-emerald-500/30">
+              ⚡
             </div>
-            <span className="text-xl font-bold text-gray-900 tracking-tight">
-              CollabX
-            </span>
+            <span className="text-xl font-black tracking-tight text-white">CollabX</span>
           </div>
 
-          {/* Tech stack pills */}
           <div className="flex flex-wrap justify-center gap-2">
-            {[
-              "Next.js 15",
-              "React 19",
-              "TypeScript",
-              "Node.js",
-              "Socket.IO",
-              "MongoDB",
-              "Redis",
-              "Express",
-            ].map((tech) => (
+            {techStack.map((tech) => (
               <span
                 key={tech}
-                className="px-3 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-400 text-xs font-medium"
+                className="px-3 py-1 rounded-full bg-[#111118] border border-white/[0.06] text-[#6b6b7a] text-xs font-medium hover:border-emerald-500/20 hover:text-emerald-400 hover:bg-emerald-500/[0.04] transition-all duration-150 cursor-default"
               >
                 {tech}
               </span>
             ))}
           </div>
 
-          <div>
-            <p className="text-gray-400 mb-1">
-              Built with ❤️ for teams who ship fast
-            </p>
-            <p className="text-gray-300 text-sm">
-              © 2026 CollabX. All rights reserved.
-            </p>
+          <div className="space-y-1">
+            <p className="text-[#6b6b7a] text-sm">Built with ❤️ for teams who ship fast</p>
+            <p className="text-[#3a3a4a] text-xs">© 2026 CollabX. All rights reserved.</p>
           </div>
         </div>
       </footer>
+
+      {/* Float keyframe – one-liner, no custom CSS classes */}
+      <style>{`@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }`}</style>
     </main>
   );
 }

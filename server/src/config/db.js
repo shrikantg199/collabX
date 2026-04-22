@@ -10,7 +10,13 @@ async function connectDB() {
   try {
     await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      socketTimeoutMS: 30000,
     });
+
+    // Warmup: ensure the connection + auth handshake is fully ready
+    await mongoose.connection.db.admin().ping();
     console.log("MongoDB connected");
   } catch (error) {
     if (error.code === "ECONNREFUSED" && error.hostname?.startsWith("_mongodb._tcp.")) {
